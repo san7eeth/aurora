@@ -1,156 +1,193 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-interface AssistantResponse {
+export interface ChatMessage {
+  role: 'user' | 'assistant';
   message: string;
-  session_id?: string; // Add session_id to the interface
+  sources?: { source_file: string; page_number: number | null; chunk_index: number | null }[];
 }
 
-interface TranscriptUpdate {
-  transcript: string;
-}
+type ConnectionMode = 'chat' | 'voice';
 
-export const useAssistantWebSocket = () => {
-  const [chatSocket, setChatSocket] = useState<WebSocket | null>(null);
-  const [audioSocket, setAudioSocket] = useState<WebSocket | null>(null);
+const wsBase = () => (import.meta as any).env?.VITE_WS_BASE || 'ws://localhost:8000';
+
+export function useAssistantWebSocket(
+  conversationId: string | null,
+  mode: ConnectionMode = 'chat',
+  onConversationId?: (id: string) => void,
+) {
   const [isConnected, setIsConnected] = useState(false);
-  const [messages, setMessages] = useState<AssistantResponse[]>([]);
-  const [transcript, setTranscript] = useState<string>('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null); // New state for session_id
-
-  const lastAudioAtRef = useRef<number>(0);
-  const browserTTSRef = useRef<boolean>(true);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const audioSocketRef = useRef<WebSocket | null>(null);
+  const pendingMessagesRef = useRef<string[]>([]);
+  const onConversationIdRef = useRef(onConversationId);
+  const playbackContextRef = useRef<AudioContext | null>(null);
+  const playbackSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   useEffect(() => {
-    const wsBase = (import.meta as any).env?.VITE_WS_BASE || 'ws://localhost:8000';
-    // Chat WebSocket
-    const wsChat = new WebSocket(`${wsBase}/ws`);
+    onConversationIdRef.current = onConversationId;
+  }, [onConversationId]);
 
-    wsChat.onopen = () => {
-      console.log('Chat WebSocket connected');
+  useEffect(() => {
+    setMessages([]);
+    setError(null);
+    setSessionId(null);
+    pendingMessagesRef.current = [];
+    if (!conversationId) {
+      setIsConnected(false);
+      return;
+    }
+
+    const query = new URLSearchParams({ conversation_id: conversationId, mode });
+    const socket = new WebSocket(`${wsBase()}/ws?${query.toString()}`);
+    socketRef.current = socket;
+
+    socket.onopen = () => {
       setIsConnected(true);
       setError(null);
-    };
-
-    wsChat.onmessage = async (event) => { // Made async to use await for audio processing
-      if (typeof event.data === 'string') {
-        const data: AssistantResponse = JSON.parse(event.data);
-        if (data.message) {
-          setMessages(prev => [...prev, { message: data.message }]);
-          if (data.session_id) {
-            setSessionId(data.session_id);
-          }
-          // Browser TTS fallback if no binary audio arrives
-          const now = Date.now();
-          const elapsed = now - lastAudioAtRef.current;
-          if (browserTTSRef.current && (typeof window !== 'undefined') && 'speechSynthesis' in window) {
-            // If no audio Blob in last 1.5s, speak via browser
-            if (elapsed > 1500) {
-              try {
-                const utter = new SpeechSynthesisUtterance(data.message);
-                utter.rate = 1;
-                utter.pitch = 1;
-                window.speechSynthesis.cancel();
-                window.speechSynthesis.speak(utter);
-              } catch (e) {
-                console.warn('Browser TTS failed:', e);
-              }
-            }
-          }
-        } else if ((data as any).transcript) {
-          setTranscript((data as any).transcript);
-        } else if ((data as any).error) {
-          setError((data as any).error);
-        }
-      } else if (event.data instanceof Blob) {
-        // Handle binary audio data
-        try {
-          lastAudioAtRef.current = Date.now();
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const arrayBuffer = await event.data.arrayBuffer();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          const source = audioContext.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(audioContext.destination);
-          source.start(0);
-        } catch (e) {
-          console.error("Error playing audio:", e);
-          setError("Error playing audio.");
-        }
+      for (const message of pendingMessagesRef.current.splice(0)) {
+        socket.send(JSON.stringify({ message }));
       }
     };
+    socket.onmessage = async (event) => {
+      if (typeof event.data !== 'string') {
+        if (event.data instanceof Blob && mode === 'voice') {
+          try {
+            playbackSourceRef.current?.stop();
+            await playbackContextRef.current?.close();
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            playbackContextRef.current = audioContext;
+            const buffer = await audioContext.decodeAudioData(await event.data.arrayBuffer());
+            const source = audioContext.createBufferSource();
+            playbackSourceRef.current = source;
+            source.onended = () => { setIsPlayingAudio(false); playbackSourceRef.current = null; };
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+            source.start(0);
+            setIsPlayingAudio(true);
+          } catch {
+            setError('Could not play the assistant audio response.');
+          }
+        }
+        return;
+      }
 
-    wsChat.onclose = () => {
-      console.log('Chat WebSocket disconnected');
-      setIsConnected(false);
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'connected') {
+          if (data.session_id) setSessionId(data.session_id);
+          if (data.conversation_id) onConversationIdRef.current?.(data.conversation_id);
+        } else if (data.type === 'start') {
+          setIsStreaming(true);
+        } else if (data.type === 'token') {
+          const token = String(data.content ?? '');
+          setMessages((current) => {
+            const last = current[current.length - 1];
+            if (last?.role === 'assistant') {
+              return [...current.slice(0, -1), { role: 'assistant', message: last.message + token }];
+            }
+            return [...current, { role: 'assistant', message: token }];
+          });
+        } else if (data.type === 'done') {
+          if (typeof data.message === 'string') {
+            setMessages((current) => {
+              const last = current[current.length - 1];
+              if (last?.role === 'assistant') {
+                return [...current.slice(0, -1), { role: 'assistant', message: data.message, sources: data.sources || [] }];
+              }
+              return [...current, { role: 'assistant', message: data.message, sources: data.sources || [] }];
+            });
+          }
+          if (data.conversation_id) onConversationIdRef.current?.(data.conversation_id);
+          setIsStreaming(false);
+        } else if (data.type === 'message' && data.message) {
+          setMessages((current) => [...current, { role: 'assistant', message: data.message }]);
+        } else if (data.type === 'error' || data.error) {
+          setError(data.message || data.error || 'The assistant could not respond.');
+          setIsStreaming(false);
+        } else if (data.message && data.message !== 'connected') {
+          setMessages((current) => [...current, { role: 'assistant', message: data.message }]);
+        } else if (data.transcript !== undefined) {
+          setTranscript(data.transcript);
+        }
+      } catch {
+        setError('Received an unreadable response from Aurora.');
+      }
     };
-
-    wsChat.onerror = (err) => {
-      console.error('Chat WebSocket error:', err);
-      setError('Chat connection error');
-    };
-
-    setChatSocket(wsChat);
+    socket.onclose = () => setIsConnected(false);
+    socket.onerror = () => setError('Chat connection failed. Check that Aurora is running.');
 
     return () => {
-      wsChat.close();
+      playbackSourceRef.current?.stop();
+      void playbackContextRef.current?.close();
+      playbackSourceRef.current = null;
+      playbackContextRef.current = null;
+      setIsPlayingAudio(false);
+      socket.close();
+      if (socketRef.current === socket) socketRef.current = null;
+      audioSocketRef.current?.close();
+      audioSocketRef.current = null;
     };
-  }, []);
+  }, [conversationId, mode]);
 
   useEffect(() => {
-    if (sessionId) {
-      const wsBase = (import.meta as any).env?.VITE_WS_BASE || 'ws://localhost:8000';
-      // Audio WebSocket - only connect once sessionId is available
-      const wsAudio = new WebSocket(`${wsBase}/ws/audio?session_id=${sessionId}`);
-
-      wsAudio.onopen = () => {
-        console.log('Audio WebSocket connected');
-      };
-
-      wsAudio.onmessage = (event) => {
+    if (mode !== 'voice' || !sessionId) return;
+    const socket = new WebSocket(`${wsBase()}/ws/audio?session_id=${encodeURIComponent(sessionId)}`);
+    audioSocketRef.current = socket;
+    socket.onmessage = (event) => {
+      if (typeof event.data !== 'string') return;
+      try {
         const data = JSON.parse(event.data);
-        if (data.transcript) {
-          setTranscript(data.transcript);
-        } else if (data.error) {
-          setError(data.error);
-        }
-      };
+        if (data.transcript !== undefined) setTranscript(data.transcript);
+        if (data.error) setError(data.error);
+      } catch {
+        setError('Received an unreadable audio response.');
+      }
+    };
+    socket.onerror = () => setError('Audio connection failed.');
+    return () => {
+      socket.close();
+      if (audioSocketRef.current === socket) audioSocketRef.current = null;
+    };
+  }, [mode, sessionId]);
 
-      wsAudio.onclose = () => {
-        console.log('Audio WebSocket disconnected');
-      };
-
-      wsAudio.onerror = (err) => {
-        console.error('Audio WebSocket error:', err);
-        setError('Audio connection error');
-      };
-
-      setAudioSocket(wsAudio);
-
-      return () => {
-        wsAudio.close();
-      };
+  const sendMessage = useCallback((message: string) => {
+    const trimmed = message.trim();
+    if (!trimmed) return false;
+    setMessages((current) => [...current, { role: 'user', message: trimmed }]);
+    setError(null);
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ message: trimmed }));
+    } else {
+      pendingMessagesRef.current.push(trimmed);
     }
-  }, [sessionId]); // This effect runs when sessionId changes
+    return true;
+  }, []);
 
-  const sendMessage = (message: string) => {
-    if (chatSocket?.readyState === WebSocket.OPEN) {
-      chatSocket.send(JSON.stringify({ message }));
+  const sendAudio = useCallback((audioChunk: Blob) => {
+    if (audioSocketRef.current?.readyState === WebSocket.OPEN) {
+      audioSocketRef.current.send(audioChunk);
     }
-  };
+  }, []);
 
-  const sendAudio = (audioChunk: Blob) => {
-    if (audioSocket?.readyState === WebSocket.OPEN) {
-      audioSocket.send(audioChunk);
-    }
-  };
+  const sendFlush = useCallback(() => {
+    if (audioSocketRef.current?.readyState === WebSocket.OPEN) audioSocketRef.current.send(JSON.stringify({ type: 'flush' }));
+  }, []);
 
-  return {
-    isConnected,
-    messages,
-    transcript,
-    error,
-    sendMessage,
-    sendAudio,
-  };
-};
+  const stopSpeech = useCallback(() => {
+    playbackSourceRef.current?.stop();
+    playbackSourceRef.current = null;
+    void playbackContextRef.current?.close();
+    playbackContextRef.current = null;
+    setIsPlayingAudio(false);
+    if (socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(JSON.stringify({ type: 'interrupt' }));
+  }, []);
+
+  return { isConnected, messages, transcript, error, isStreaming, sendMessage, sendAudio, sendFlush, isPlayingAudio, stopSpeech };
+}

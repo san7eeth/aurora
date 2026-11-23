@@ -1,4 +1,4 @@
-"""Unit tests — FastAPI REST endpoints."""
+"""Unit tests — FastAPI REST endpoints (v0.3.0)."""
 import pytest
 
 
@@ -19,7 +19,14 @@ def test_health_body_has_model(test_client):
 
 def test_health_body_has_version(test_client):
     r = test_client.get("/health")
-    assert "version" in r.json()
+    assert r.json()["version"] == "0.3.0"
+
+
+def test_health_reports_database_and_ollama(test_client):
+    body = test_client.get("/health").json()
+    assert body["database"] == "ok"
+    assert body["ollama"] is True
+    assert body["status"] == "ok"
 
 
 def test_select_model_empty_name_returns_400(test_client):
@@ -37,3 +44,84 @@ def test_select_model_valid_name_returns_200(test_client):
 def test_select_model_missing_body_returns_400(test_client):
     r = test_client.post("/api/models/select", json={})
     assert r.status_code == 400
+
+
+# --- Conversation endpoints ---
+
+def test_list_conversations_returns_200(test_client):
+    r = test_client.get("/api/conversations")
+    assert r.status_code == 200
+    assert "conversations" in r.json()
+
+
+def test_create_conversation(test_client):
+    r = test_client.post("/api/conversations", json={"title": "Test Chat"})
+    assert r.status_code == 200
+    data = r.json()
+    assert "id" in data
+    assert data["title"] == "Test Chat"
+
+
+def test_get_nonexistent_conversation_returns_404(test_client):
+    r = test_client.get("/api/conversations/nonexistent-id")
+    assert r.status_code == 404
+
+
+def test_delete_nonexistent_conversation_returns_404(test_client):
+    r = test_client.delete("/api/conversations/nonexistent-id")
+    assert r.status_code == 404
+
+
+# --- Memory endpoints ---
+
+def test_list_memories_returns_200(test_client):
+    r = test_client.get("/api/memories")
+    assert r.status_code == 200
+    assert "memories" in r.json()
+
+
+def test_add_memory_requires_content(test_client):
+    r = test_client.post("/api/memories", json={"content": ""})
+    assert r.status_code == 400
+
+
+def test_add_memory_success(test_client):
+    r = test_client.post("/api/memories", json={"content": "User prefers dark mode"})
+    assert r.status_code == 200
+    assert "id" in r.json()
+
+
+# --- Document endpoints ---
+
+def test_list_documents_returns_200(test_client):
+    r = test_client.get("/api/documents")
+    assert r.status_code == 200
+    assert "documents" in r.json()
+
+
+# --- Settings endpoints ---
+
+def test_get_settings_returns_200(test_client):
+    r = test_client.get("/api/settings")
+    assert r.status_code == 200
+    assert "settings" in r.json()
+
+
+def test_update_settings(test_client):
+    r = test_client.post("/api/settings", json={"theme": "dark", "language": "en"})
+    assert r.status_code == 200
+
+
+# --- Chat REST endpoint ---
+
+def test_chat_requires_message(test_client):
+    r = test_client.post("/api/chat", json={"message": ""})
+    assert r.status_code == 400
+
+
+def test_chat_rest_returns_response(test_client):
+    r = test_client.post("/api/chat", json={"message": "Hello"})
+    assert r.status_code == 200
+    data = r.json()
+    assert "response" in data
+    assert "conversation_id" in data

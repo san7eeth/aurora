@@ -1,4 +1,3 @@
-import React from 'react';
 import { Calendar, TrendingUp, Plane, ChevronRight } from 'lucide-react';
 import AIOrb from './AIOrb';
 

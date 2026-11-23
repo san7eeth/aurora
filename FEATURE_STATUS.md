@@ -1,5 +1,35 @@
 # Aurora – Feature Status
-**Classification of every existing feature as of audit: 2026-11-21**
+**Historical audit baseline:** 2026-11-21
+**Current Phase 6 status:** 2026-11-23 17:01 IST
+
+## Current status update — Phases 4–6
+
+This section supersedes the matching historical entries below for features delivered through Phase 4. Live REST/WebSocket operation was not exercised in the loopback-restricted environment; implementation checks (build, type check, compile, import) passed.
+
+| Area | Current status | Notes |
+|---|---|---|
+| Ollama text generation and streaming | ✅ Implemented | WebSocket streams `start`, `token`, and `done` events through the async Ollama service |
+| Active model selection | ✅ Implemented | Lists installed models, validates selection, persists it in SQLite, and restores it at startup |
+| Conversation context | ✅ Implemented | Recent messages are loaded from SQLite and included in the prompt |
+| Conversation persistence | ✅ Implemented | User and assistant messages persist after each completed response |
+| Conversation REST API | ✅ Implemented | List, read, create, update, and delete |
+| Chat screen | ✅ Implemented | Streaming response display and message composer |
+| Conversation history screen | ✅ Implemented | Opens and deletes conversations; creates new chats |
+| Model management screen | ✅ Implemented | Lists local Ollama models and selects the active model |
+| Header status | ✅ Implemented | Live backend health indicator, local clock, and active model display |
+| Long-term memory embeddings | ✅ Implemented | Stored in SQLite and used for cosine similarity retrieval |
+| Automatic memory extraction | ✅ Implemented | Local model extracts durable user facts after a chat turn |
+| Document chunk metadata | ✅ Implemented | SQLite stores source filename, page number, chunk index, content, and embedding |
+| Knowledge base API and UI | ✅ Implemented | Upload/list/delete for PDF, TXT, and DOCX; 25 MB upload limit |
+| Memory management API and UI | ✅ Implemented | List, add, edit, and delete memories |
+| Chat document references | ✅ Implemented | Assistant message metadata stores source references; UI shows filename and PDF page when available |
+| Voice activity detection | ✅ Implemented | WebRTC VAD segments fixed-size PCM frames with pre-roll and silence endpointing |
+| Voice transcription input | ✅ Implemented | Browser AudioWorklet sends 16 kHz mono PCM; normal PCM-to-WAV path does not require FFmpeg |
+| Legacy encoded audio decoding | ⚠️ Dependency required | Clear setup error directs users to install FFmpeg if pydub cannot decode an encoded upload |
+| Speech output rate | ✅ Implemented | Persisted 100–300 rate setting controls pyttsx3 |
+| Microphone selection | ✅ Implemented | Voice settings lets users pick enumerated audio inputs |
+| Interruptible voice playback | ✅ Implemented | Stop control halts local playback and signals the backend to suppress stale speech; recording also interrupts playback |
+| Full voice pipeline runtime | ⏳ Not verified | Requires installed backend dependencies, a usable microphone, and local Ollama; defer to Phase 9 |
 
 ---
 

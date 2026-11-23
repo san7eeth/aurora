@@ -8,7 +8,7 @@ from app.core.logging_config import configure_logging
 
 
 def run():
-    configure_logging(level=settings.log_level, json_logs=False)
+    configure_logging(level=settings.log_level, json_logs=settings.log_json)
     uvicorn.run(
         "app.api:app",
         host=settings.backend_host,

@@ -3,8 +3,7 @@ Shared pytest fixtures for Aurora test suite.
 All external services (Ollama, TTS, STT, RAG) are mocked by default.
 """
 import pytest
-from unittest.mock import patch
-from fastapi.testclient import TestClient
+from unittest.mock import patch, AsyncMock
 
 
 @pytest.fixture
@@ -40,8 +39,19 @@ def mock_stt():
 
 
 @pytest.fixture
-def test_client(mock_intent_router, mock_rag_service, mock_tts, mock_stt):
+def mock_ollama_service():
+    """Mock OllamaService methods used in the API layer."""
+    with patch("app.api.ollama_svc") as mock_svc:
+        mock_svc.is_available = AsyncMock(return_value=True)
+        mock_svc.list_models = AsyncMock(return_value=["llama3.2:3b", "phi3:mini"])
+        mock_svc.model_info = AsyncMock(return_value={"name": "llama3.2:3b"})
+        yield mock_svc
+
+
+@pytest.fixture
+def test_client(mock_intent_router, mock_rag_service, mock_tts, mock_stt, mock_ollama_service):
     """FastAPI TestClient with all external services mocked."""
+    from fastapi.testclient import TestClient
     from app.api import app
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client

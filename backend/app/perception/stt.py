@@ -7,12 +7,14 @@ from typing import Optional
 import io
 import tempfile
 import os
+import wave
 
 
 class WhisperSTT:
     def __init__(self, model_size: str = "tiny"):
         self._ready = False
         self._model = None
+        self.last_error: str | None = None
         try:
             from faster_whisper import WhisperModel
             # Use CUDA if available, else CPU with int8 for speed
@@ -53,11 +55,34 @@ class WhisperSTT:
 
         wav_path = self._convert_with_pydub(audio_bytes)
         if wav_path is None:
-            # Fallback: treat as raw WAV
-            fd, wav_path = tempfile.mkstemp(suffix=".wav")
-            os.close(fd)
-            with open(wav_path, "wb") as f:
-                f.write(audio_bytes)
+            self.last_error = "Could not decode this audio. Install FFmpeg and ensure it is on PATH."
+            return None
+        return self._transcribe_wav(wav_path)
+
+    def transcribe_pcm(self, pcm_bytes: bytes, sample_rate: int = 16000) -> Optional[str]:
+        """Transcribe signed 16-bit mono PCM without requiring FFmpeg."""
+        if not self.is_ready:
+            self.last_error = "Speech recognition model is not ready. Install faster-whisper and restart Aurora."
+            return None
+        if len(pcm_bytes) < 960:
+            return None
+        fd, wav_path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        try:
+            with wave.open(wav_path, "wb") as output:
+                output.setnchannels(1)
+                output.setsampwidth(2)
+                output.setframerate(sample_rate)
+                output.writeframes(pcm_bytes)
+            return self._transcribe_wav(wav_path)
+        finally:
+            try:
+                os.remove(wav_path)
+            except OSError:
+                pass
+
+    def _transcribe_wav(self, wav_path: str) -> Optional[str]:
+        self.last_error = None
 
         try:
             segments, _ = self._model.transcribe(
@@ -77,5 +102,5 @@ class WhisperSTT:
         finally:
             try:
                 os.remove(wav_path)
-            except Exception:
+            except OSError:
                 pass
