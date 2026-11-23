@@ -1,0 +1,138 @@
+services:
+  aurora-backend:
+    image: ${AURORA_BACKEND_IMAGE:-aurora-backend:local}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: 8000
+      DATABASE_URL: sqlite+aiosqlite:////app/data/aurora.db
+      VITE_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      USER_NAME: ${USER_NAME:-Aurora User}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
+    volumes:
+      - aurora-data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks: [aurora-net]
+    restart: unless-stopped
+
+  aurora-frontend:
+    image: ${AURORA_FRONTEND_IMAGE:-aurora-frontend:local}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_WS_BASE: ${VITE_WS_BASE:-ws://localhost:8000}
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      aurora-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [aurora-net]
+    restart: unless-stopped
+
+  aurora-tests:
+    profiles: [qa]
+    image: aurora-backend-test:local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: test
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////tmp/aurora-tests.db
+      TESTING: "true"
+    command: ["pytest", "tests/unit", "-v", "--junitxml=/tmp/unit-results.xml"]
+    networks: [aurora-net]
+
+  aurora-e2e:
+    profiles: [qa]
+    image: aurora-e2e:local
+    build:
+      context: ./e2e-playwright
+      dockerfile: Dockerfile
+    environment:
+      CI: "true"
+      AURORA_URL: http://aurora-frontend
+      BACKEND_URL: http://aurora-backend:8000
+      PLAYWRIGHT_OUTPUT_DIR: /tmp/playwright-results
+    volumes:
+      - ./test-results/e2e:/tmp/playwright-results
+    depends_on:
+      aurora-backend:
+        condition: service_healthy
+      aurora-frontend:
+        condition: service_healthy
+    networks: [aurora-net]
+    command: ["npm", "test"]
+
+  sonarqube:
+    profiles: [devtools]
+    image: sonarqube:community
+    ports:
+      - "127.0.0.1:9000:9000"
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    volumes:
+      - sonar-data:/opt/sonarqube/data
+      - sonar-logs:/opt/sonarqube/logs
+      - sonar-extensions:/opt/sonarqube/extensions
+    networks: [aurora-net]
+
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:v3.16.0
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./devops/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    networks: [aurora-net]
+
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:13.4.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-aurora-local-only}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./devops/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./devops/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+    networks: [aurora-net]
+
+volumes:
+  aurora-data:
+  sonar-data:
+  sonar-logs:
+  sonar-extensions:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  aurora-net:
+    driver: bridge

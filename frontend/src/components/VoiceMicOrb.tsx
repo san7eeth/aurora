@@ -1,16 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface VoiceMicOrbProps {
   isDarkMode: boolean;
   sendAudio: (data: Blob) => void;
   isSpeaking: boolean;
+  microphoneId: string;
+  sendFlush: () => void;
+  onError: (message: string) => void;
+  onDevicesFound: (devices: MediaDeviceInfo[]) => void;
+  onStartRecording: () => void;
 }
 
-export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking }: VoiceMicOrbProps) {
+export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking, microphoneId, sendFlush, onError, onDevicesFound, onStartRecording }: VoiceMicOrbProps) {
   const [isListening, setIsListening] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [waveformData, setWaveformData] = useState<number[]>(Array(12).fill(0));
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const waveformDataRef = useRef(waveformData);
+  waveformDataRef.current = waveformData;
   const [isHovered, setIsHovered] = useState(false);
   const orbRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
@@ -18,7 +24,10 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking }: Voice
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const workletRef = useRef<AudioWorkletNode | null>(null);
+  const pcmPendingRef = useRef<number[]>([]);
+  const resampleInputRef = useRef<number[]>([]);
+  const resamplePositionRef = useRef(0);
 
   // Animation effect
   useEffect(() => {
@@ -29,7 +38,7 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking }: Voice
         if (isSpeaking) {
           const newLevel = audioLevel + (Math.random() * 0.4 - 0.2) * 0.05;
           setAudioLevel(Math.max(0.1, Math.min(0.9, newLevel)));
-          const newWaveform = lastWaveform.map((val, i) => {
+          const newWaveform = lastWaveform.map((val) => {
             const target = Math.random() * 0.6 + 0.2;
             return val + (target - val) * 0.05;
           });
@@ -75,7 +84,7 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking }: Voice
       }
     };
 
-    if (isListening || isSpeaking || waveformData.some(val => val > 0)) {
+    if (isListening || isSpeaking || waveformDataRef.current.some(val => val > 0)) {
       animationRef.current = requestAnimationFrame(animate);
     }
 
@@ -88,41 +97,71 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking }: Voice
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      onStartRecording();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        ...(microphoneId ? { deviceId: { exact: microphoneId } } : {}),
+        echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+      } });
       mediaStreamRef.current = stream;
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextConstructor = window.AudioContext ?? window.webkitAudioContext;
+      if (!AudioContextConstructor) throw new Error('Web Audio is not supported by this browser.');
+      audioContextRef.current = new AudioContextConstructor();
       const audioContext = audioContextRef.current;
 
-      // Set up Analyser for visualization
+      onDevicesFound((await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === 'audioinput'));
       analyserRef.current = audioContext.createAnalyser();
       analyserRef.current.fftSize = 256;
 
       // Create a MediaStreamSource from the microphone input
       sourceRef.current = audioContext.createMediaStreamSource(stream);
       sourceRef.current.connect(analyserRef.current);
-
-      // Use MediaRecorder to generate proper audio blobs
-      const mime = (window as any).MediaRecorder && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus' : 'audio/webm';
-      const recorder = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 128000 });
-      recorder.ondataavailable = (e: BlobEvent) => {
-        if (e.data && e.data.size > 0) {
-          sendAudio(e.data);
+      await audioContext.audioWorklet.addModule('/pcm-processor.js');
+      workletRef.current = new AudioWorkletNode(audioContext, 'aurora-pcm-capture');
+      workletRef.current.port.onmessage = (event: MessageEvent<Float32Array>) => {
+        const input = event.data as Float32Array;
+        const ratio = audioContext.sampleRate / 16000;
+        let position = resamplePositionRef.current;
+        const combined = resampleInputRef.current.concat(Array.from(input));
+        while (position + 1 < combined.length) {
+          const lower = Math.floor(position);
+          const sample = combined[lower] + (combined[lower + 1] - combined[lower]) * (position - lower);
+          pcmPendingRef.current.push(Math.max(-1, Math.min(1, sample)));
+          position += ratio;
+        }
+        const consumed = Math.floor(position);
+        const remainder = combined.slice(consumed);
+        resampleInputRef.current = remainder;
+        resamplePositionRef.current = position - consumed;
+        while (pcmPendingRef.current.length >= 480) {
+          const samples = pcmPendingRef.current.splice(0, 480);
+          const pcm = new Int16Array(480);
+          samples.forEach((value, index) => { pcm[index] = value < 0 ? value * 32768 : value * 32767; });
+          sendAudio(new Blob([pcm.buffer], { type: 'application/x-pcm' }));
         }
       };
-      recorder.start(1000); // 1s chunks
-      mediaRecorderRef.current = recorder;
+      sourceRef.current.connect(workletRef.current);
+      workletRef.current.connect(audioContext.destination);
 
       setIsListening(true);
     } catch (error) {
       console.error('Error starting recording:', error);
+      onError(error instanceof Error ? error.message : 'Could not access the microphone. Check browser permissions.');
+      stopRecording(false);
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+  const stopRecording = (flush = true) => {
+    if (flush && isListening) {
+      if (pcmPendingRef.current.length) {
+        const samples = [...pcmPendingRef.current, ...Array(480 - pcmPendingRef.current.length).fill(0)];
+        const pcm = new Int16Array(480);
+        samples.forEach((value, index) => { pcm[index] = value < 0 ? value * 32768 : value * 32767; });
+        sendAudio(new Blob([pcm.buffer], { type: 'application/x-pcm' }));
+      }
+      sendFlush();
     }
+    workletRef.current?.disconnect();
+    workletRef.current = null;
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
     }
@@ -136,7 +175,16 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking }: Voice
         audioContextRef.current.close();
     }
     setIsListening(false);
+    pcmPendingRef.current = [];
+    resampleInputRef.current = [];
+    resamplePositionRef.current = 0;
   };
+
+  useEffect(() => () => {
+    workletRef.current?.disconnect();
+    mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+    void audioContextRef.current?.close();
+  }, []);
 
   const handleClick = () => {
     if (!isListening) {
@@ -163,9 +211,6 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking }: Voice
       <div
         ref={orbRef}
         className="relative cursor-pointer transition-transform duration-300 ease-out"
-        style={{
-          transform: `translate(${mousePosition.x}px, ${mousePosition.y}px)`,
-        }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleClick}

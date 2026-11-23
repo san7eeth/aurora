@@ -1,15 +1,14 @@
-"""
-Placeholder for scanning `backend/data/docs` and indexing into FAISS.
-"""
+"""Read supported local documents and split their text into retrieval chunks."""
 
 from pathlib import Path
 from typing import List
 import re
 from pypdf import PdfReader
 from docx import Document
+from ..core.config import APP_DATA_DIR
 
 
-DOCS_DIR = Path(__file__).resolve().parents[2] / "data" / "docs"
+DOCS_DIR = APP_DATA_DIR / "docs"
 
 
 def list_supported_documents() -> List[Path]:
@@ -28,6 +27,24 @@ def read_text(path: Path) -> str:
         doc = Document(str(path))
         return "\n".join(p.text for p in doc.paragraphs)
     return ""
+
+
+def read_pages(path: Path) -> list[tuple[str, int | None]]:
+    """Read document text while preserving PDF page numbers when available."""
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        reader = PdfReader(str(path))
+        return [
+            (page.extract_text() or "", page_number)
+            for page_number, page in enumerate(reader.pages, start=1)
+        ]
+    if suffix == ".txt":
+        return [(path.read_text(encoding="utf-8", errors="ignore"), None)]
+    if suffix == ".docx":
+        doc = Document(str(path))
+        content = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+        return [(content, None)]
+    return []
 
 
 def chunk_text(text: str, max_tokens: int = 400) -> List[str]:
@@ -57,5 +74,3 @@ def load_all_chunks() -> List[str]:
         txt = read_text(f)
         all_chunks.extend(chunk_text(txt))
     return all_chunks
-
-
