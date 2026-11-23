@@ -3,14 +3,14 @@ FAISS vector store + sentence-transformers embeddings + simple retrieval.
 """
 
 from typing import List, Tuple
-from pathlib import Path
 import json
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from ..core.config import APP_DATA_DIR
 
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+DATA_DIR = APP_DATA_DIR
 STORE_DIR = DATA_DIR / "vectorstore"
 STORE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -33,7 +33,10 @@ class RAGService:
             if self.metadata_path.exists():
                 self._metadata = json.loads(self.metadata_path.read_text(encoding="utf-8"))
             else:
-                self._metadata = [{"source_file": None, "page_number": None, "chunk_index": i} for i in range(len(self._texts))]
+                self._metadata = [
+                    {"source_file": None, "page_number": None, "chunk_index": i}
+                    for i in range(len(self._texts))
+                ]
 
     def _save(self):
         if self._index is not None:
@@ -106,6 +109,3 @@ class RAGService:
                 **(self._metadata[i] if i < len(self._metadata) else {}),
             })
         return results
-
-
-

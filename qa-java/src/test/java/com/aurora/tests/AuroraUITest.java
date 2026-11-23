@@ -46,18 +46,13 @@ public class AuroraUITest extends BaseTest {
         );
     }
 
-    @Test(description = "Verify clicking AI orb toggles to voice view")
-    public void testOrbTogglesView() {
-        test = extent.createTest("AI Orb — View Toggle");
+    @Test(description = "Verify Agent task screen opens from the navigation")
+    public void testAgentNavigation() {
+        test = extent.createTest("Agent screen — Navigation");
 
         AuroraHomePage page = new AuroraHomePage(driver);
         page.navigate();
-
-        try {
-            page.clickAiOrb();
-            test.pass("Orb clicked — view toggled");
-        } catch (Exception e) {
-            test.warning("Orb not found or not clickable yet: " + e.getMessage());
-        }
+        page.openAgentTasks();
+        Assert.assertEquals(page.getAgentHeading(), "Agent tasks");
     }
 }

@@ -1,0 +1,13 @@
+services:
+  aurora-backend:
+    ports:
+      - "${STAGING_BIND_ADDRESS:-127.0.0.1}:18000:8000"
+    environment:
+      VITE_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:18080}
+
+  aurora-frontend:
+    ports:
+      - "${STAGING_BIND_ADDRESS:-127.0.0.1}:18080:80"
+    build:
+      args:
+        VITE_WS_BASE: ${VITE_WS_BASE:-ws://localhost:18000}

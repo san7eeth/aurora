@@ -1,17 +1,36 @@
 """Unit tests — Database models and services."""
 import pytest
-import asyncio
-from unittest.mock import patch, AsyncMock
+from app.database.models import Base
+from app.services.conversation_service import ConversationService
+
+
+@pytest.mark.asyncio
+async def test_sqlite_conversation_message_crud(isolated_database):
+    async with isolated_database.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+    service = ConversationService()
+    conversation = await service.create_conversation("QA conversation", model_name="test-model")
+    message = await service.add_message(conversation.id, "user", "hello", {"source": "test"})
+    loaded = await service.get_conversation(conversation.id)
+    assert loaded.title == "QA conversation"
+    assert loaded.messages[0].content == "hello"
+    assert (await service.get_messages(conversation.id))[0].id == message.id
+    assert await service.update_conversation(conversation.id, title="Updated") is True
+    assert (await service.get_conversation(conversation.id)).title == "Updated"
+    assert await service.delete_conversation(conversation.id) is True
+    assert await service.get_conversation(conversation.id) is None
 
 
 def test_database_models_import():
     """Verify all database models can be imported."""
-    from app.database.models import Conversation, Message, Memory, Document, Setting
+    from app.database.models import Conversation, Message, Memory, Document, Setting, AgentRun
     assert Conversation.__tablename__ == "conversations"
     assert Message.__tablename__ == "messages"
     assert Memory.__tablename__ == "memories"
     assert Document.__tablename__ == "documents"
     assert Setting.__tablename__ == "settings"
+    assert AgentRun.__tablename__ == "agent_runs"
 
 
 def test_conversation_model_has_expected_columns():

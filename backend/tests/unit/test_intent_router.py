@@ -1,5 +1,4 @@
 """Unit tests — IntentRouter."""
-import pytest
 from unittest.mock import patch
 from app.intent.intent_router import IntentRouter, SYSTEM_PROMPT
 

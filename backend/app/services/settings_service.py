@@ -4,7 +4,7 @@ Settings Service — persistent key-value settings in the database.
 
 import json
 import logging
-from typing import Optional, Any
+from typing import Any
 from sqlalchemy import select
 
 from ..database.engine import async_session

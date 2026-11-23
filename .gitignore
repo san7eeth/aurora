@@ -15,6 +15,8 @@ MANIFEST
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -22,7 +24,11 @@ ENV/
 
 # Aurora-specific
 backend/.venv/
+backend/.env
+backend/.env.*
+!backend/.env.example
 backend/aurora.db
+backend/data/*.db
 backend/data/vectorstore/
 backend/data/docs/
 
@@ -42,6 +48,13 @@ htmlcov/
 node_modules/
 npm-debug.log*
 frontend/dist/
+test-results/
+release/
+coverage.xml
+flake8-report.txt
+bandit-report.json
+gitleaks-report.json
+qa-java/target/
 
 # IDE
 .vscode/

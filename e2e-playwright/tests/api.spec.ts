@@ -7,37 +7,37 @@ import { test, expect } from '@playwright/test';
 
 const BASE = process.env.BACKEND_URL || 'http://localhost:8000';
 
-test.describe('Aurora API – Health & Models', () => {
+test.describe('Aurora API – Health, settings, and tools', () => {
   test('health endpoint returns ok status', async ({ request }) => {
     const res = await request.get(`${BASE}/health`);
     expect(res.ok()).toBeTruthy();
     const json = await res.json();
-    expect(json.status).toBe('ok');
+    expect(['ok', 'degraded']).toContain(json.status);
+    expect(json.database).toBe('ok');
   });
 
-  test('models endpoint returns active model', async ({ request }) => {
-    const res = await request.get(`${BASE}/api/models`);
+  test('active model endpoint returns a configured model name', async ({ request }) => {
+    const res = await request.get(`${BASE}/api/models/active`);
     expect(res.ok()).toBeTruthy();
     const json = await res.json();
-    expect(json).toHaveProperty('active');
     expect(typeof json.active).toBe('string');
+    expect(json.active.length).toBeGreaterThan(0);
   });
-});
 
-test.describe('Aurora API – Chat', () => {
-  test('POST /api/chat returns a response', async ({ request }) => {
-    const res = await request.post(`${BASE}/api/chat`, {
-      data: {
-        message: 'Say hello in one word',
-        session_id: 'playwright-test',
-      },
-      timeout: 60_000,  // AI response can take time
-    });
+  test('settings API returns an object without the private voice profile', async ({ request }) => {
+    const res = await request.get(`${BASE}/api/settings`);
     expect(res.ok()).toBeTruthy();
     const json = await res.json();
-    // Response should have a reply field
-    expect(json).toHaveProperty('response');
-    expect(typeof json.response).toBe('string');
-    expect(json.response.length).toBeGreaterThan(0);
+    expect(json.settings).toBeTruthy();
+    expect(json.settings).not.toHaveProperty('voice_auth_profile');
+  });
+
+  test('agent tool registry is restricted to supported local tools', async ({ request }) => {
+    const res = await request.get(`${BASE}/api/agent/tools`);
+    expect(res.ok()).toBeTruthy();
+    const json = await res.json();
+    expect(json.tools.map((tool: { name: string }) => tool.name)).toEqual(
+      expect.arrayContaining(['system_info', 'list_files', 'launch_app', 'clipboard_read']),
+    );
   });
 });

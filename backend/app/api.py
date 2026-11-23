@@ -6,15 +6,17 @@ Phase 3: Architecture refactoring — service layer, database, streaming, REST e
 import asyncio
 import json
 import logging
+import sys
 import time
 import threading
 import uuid
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, TYPE_CHECKING
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from .config import settings
@@ -26,16 +28,22 @@ from .core.exceptions import (
 )
 from .core.health import run_startup_checks, startup_state
 from .core.logging_config import configure_logging
+from .core.runtime_paths import find_frontend_dist
 from .services.ollama_service import OllamaService
 from .services.conversation_service import ConversationService
 from .services.memory_service import MemoryService
 from .services.document_service import DocumentService
 from .services.settings_service import SettingsService
-from .intent.intent_router import IntentRouter, SYSTEM_PROMPT
-from .intent.rag_service import RAGService
+from .services.agent_service import AgentService
+from .agent.tools import TOOL_SCHEMAS, SENSITIVE_TOOLS, execute_tool, validate_arguments
+from .perception.voice_auth import voice_embedding, similarity
+from .intent.intent_router import IntentRouter
 from .perception.tts import Pyttsx3TTS
 from .perception.stt import WhisperSTT
 from .perception.vad import BYTES_PER_FRAME, VoiceActivityDetector
+
+if TYPE_CHECKING:
+    from .intent.rag_service import RAGService
 
 logger = logging.getLogger("aurora.api")
 
@@ -47,24 +55,30 @@ conv_svc = ConversationService()
 memory_svc = MemoryService()
 doc_svc = DocumentService()
 settings_svc = SettingsService()
+agent_svc = AgentService()
 
 
 # ---------------------------------------------------------------------------
 # Lazy singletons for heavy-init modules (RAG, TTS, STT)
 # ---------------------------------------------------------------------------
-_rag: RAGService | None = None
+_rag: "RAGService | None" = None
 _router: IntentRouter | None = None
 _tts: Pyttsx3TTS | None = None
 _stt: WhisperSTT | None = None
 _speech_rate = 200
 _rag_lock = threading.Lock()
+_agent_execution_lock = asyncio.Lock()
+_request_count = 0
+_request_error_count = 0
+_request_duration_seconds = 0.0
 
 
-def get_rag() -> RAGService:
+def get_rag() -> "RAGService":
     global _rag
     if _rag is None:
         with _rag_lock:
             if _rag is None:
+                from .intent.rag_service import RAGService
                 _rag = RAGService()
     return _rag
 
@@ -127,6 +141,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def collect_request_metrics(request: Request, call_next):
+    global _request_count, _request_error_count, _request_duration_seconds
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        _request_count += 1
+        _request_error_count += 1
+        _request_duration_seconds += time.perf_counter() - started
+        raise
+    _request_count += 1
+    if response.status_code >= 500:
+        _request_error_count += 1
+    _request_duration_seconds += time.perf_counter() - started
+    return response
 
 
 @app.exception_handler(AuroraError)
@@ -373,6 +405,22 @@ async def health():
         "model": settings.ollama_model,
         "version": "0.3.0",
     })
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+async def metrics():
+    """Small in-memory Prometheus endpoint; counters reset when the process restarts."""
+    return (
+        "# HELP aurora_http_requests_total Total HTTP requests handled by this process.\n"
+        "# TYPE aurora_http_requests_total counter\n"
+        f"aurora_http_requests_total {_request_count}\n"
+        "# HELP aurora_http_server_errors_total HTTP 5xx responses and unhandled request errors.\n"
+        "# TYPE aurora_http_server_errors_total counter\n"
+        f"aurora_http_server_errors_total {_request_error_count}\n"
+        "# HELP aurora_http_request_duration_seconds_sum Total request handling time in seconds.\n"
+        "# TYPE aurora_http_request_duration_seconds_sum counter\n"
+        f"aurora_http_request_duration_seconds_sum {_request_duration_seconds:.6f}\n"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -762,6 +810,7 @@ async def rebuild_index():
 @app.get("/api/settings")
 async def get_settings():
     all_settings = await settings_svc.get_all()
+    all_settings.pop("voice_auth_profile", None)
     all_settings.setdefault("speech_rate", _speech_rate)
     return {"settings": all_settings}
 
@@ -769,6 +818,8 @@ async def get_settings():
 @app.post("/api/settings")
 async def update_settings(payload: dict):
     global _speech_rate
+    if "voice_auth_profile" in payload:
+        raise ValidationError("Voice profiles must be changed through the voice-auth endpoints")
     if "speech_rate" in payload:
         try:
             requested_rate = int(payload["speech_rate"])
@@ -783,6 +834,178 @@ async def update_settings(payload: dict):
     for key, value in payload.items():
         await settings_svc.set(key, value)
     return {"status": "updated"}
+
+
+# ---------------------------------------------------------------------------
+# Agent tools and task planning
+# ---------------------------------------------------------------------------
+@app.get("/api/agent/tools")
+async def list_agent_tools():
+    return {"tools": TOOL_SCHEMAS}
+
+
+@app.post("/api/agent/plan")
+async def plan_agent_task(payload: dict):
+    task = str(payload.get("task", "")).strip()
+    if not 2 <= len(task) <= 1000:
+        raise ValidationError("task must contain between 2 and 1000 characters")
+    schema = json.dumps(TOOL_SCHEMAS, ensure_ascii=False)
+    prompt = (
+        "Create a short plan for a local desktop assistant. Choose only tools from the tool list. "
+        "Never invent a tool, shell command, executable, path, or argument. A user must approve "
+        "the plan before it runs. Return only JSON in this shape: "
+        '{"steps":[{"tool":"tool_name","arguments":{},"reason":"short explanation"}]}. '
+        "Use at most 5 steps. If the task is unsupported, return {\"steps\":[]} .\n"
+        f"Tools: {schema}\nTask: {task}"
+    )
+    raw = await ollama_svc.generate(prompt, temperature=0, max_tokens=512)
+    try:
+        decoded = json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
+        raw_steps = decoded.get("steps", [])
+        if not isinstance(raw_steps, list) or len(raw_steps) > 5:
+            raise ValueError("Plan must contain at most five steps")
+        steps = []
+        for item in raw_steps:
+            name = item.get("tool")
+            args = validate_arguments(name, item.get("arguments", {}))
+            steps.append({
+                "tool": name,
+                "arguments": args,
+                "reason": str(item.get("reason", "Run the selected local tool."))[:300],
+                "confirmation_required": True,
+                "sensitive": name in SENSITIVE_TOOLS,
+            })
+        if not steps:
+            raise ValidationError("Aurora could not create a plan using the available local tools.")
+    except ValidationError:
+        raise
+    except Exception as exc:
+        logger.info("Agent returned an unusable plan: %s", exc)
+        raise ValidationError("Aurora could not create a valid tool plan. Try a more specific task.") from exc
+    run = await agent_svc.create(task, steps)
+    return {"plan_id": run.id, "task": task, "steps": steps, "status": run.status}
+
+
+@app.post("/api/agent/execute")
+async def execute_agent_plan(payload: dict):
+    run_id = str(payload.get("plan_id", ""))
+    if payload.get("confirmed") is not True:
+        raise ValidationError("Review the plan and explicitly confirm before execution.")
+    async with _agent_execution_lock:
+        run = await agent_svc.get(run_id)
+        if not run:
+            raise NotFoundError("Agent plan was not found.")
+        if run.status != "awaiting_confirmation":
+            raise ValidationError("This plan has already been executed or cancelled.")
+        await agent_svc.update(run_id, "running")
+        results = []
+        failed = False
+        for step in run.plan:
+            try:
+                output = await asyncio.to_thread(execute_tool, step["tool"], step["arguments"])
+                results.append({"tool": step["tool"], "ok": True, "output": output})
+            except Exception as exc:
+                failed = True
+                results.append({"tool": step["tool"], "ok": False, "error": str(exc)[:500]})
+                break
+
+        # Inject observed tool results into a final response; this model cannot initiate extra tools.
+        summary_prompt = (
+            "Summarize the completed local tool results for the user's request. Report failures clearly. "
+            "Do not claim actions that are absent from the results and do not request or execute more tools.\n"
+            f"User task: {run.task}\nTool results: {json.dumps(results, ensure_ascii=False)}"
+        )
+        summary = await ollama_svc.generate(summary_prompt, temperature=0.2, max_tokens=300)
+        persisted = []
+        for item in results:
+            saved = dict(item)
+            if item["tool"] == "clipboard_read" and item.get("ok"):
+                saved["output"] = {"text": "[clipboard content omitted from execution history]"}
+            persisted.append(saved)
+        await agent_svc.update(run_id, "partial" if failed else "completed", {"steps": persisted, "summary": summary})
+        return {
+            "plan_id": run_id,
+            "status": "partial" if failed else "completed",
+            "results": results,
+            "summary": summary,
+        }
+
+
+@app.post("/api/agent/{plan_id}/cancel")
+async def cancel_agent_plan(plan_id: str):
+    async with _agent_execution_lock:
+        run = await agent_svc.get(plan_id)
+        if not run:
+            raise NotFoundError("Agent plan was not found.")
+        if run.status != "awaiting_confirmation":
+            raise ValidationError("Only plans awaiting confirmation can be cancelled.")
+        await agent_svc.update(plan_id, "cancelled", None)
+        return {"status": "cancelled"}
+
+
+@app.get("/api/agent/history")
+async def agent_history():
+    runs = await agent_svc.list()
+    return {"runs": [{
+        "id": run.id, "task": run.task, "plan": run.plan, "status": run.status,
+        "result": run.result, "created_at": run.created_at.isoformat(),
+    } for run in runs]}
+
+
+# ---------------------------------------------------------------------------
+# Opt-in convenience voice profile (not a security authenticator)
+# ---------------------------------------------------------------------------
+@app.get("/api/voice-auth/status")
+async def voice_auth_status():
+    profile = await settings_svc.get("voice_auth_profile")
+    return {
+        "enrolled": bool(profile),
+        "warning": "Voice matching is approximate and must not be used as a security control.",
+    }
+
+
+@app.post("/api/voice-auth/enroll")
+async def enroll_voice(request: Request):
+    audio = await request.body()
+    if len(audio) > 5_000_000:
+        raise ValidationError("Voice sample exceeds the 5 MB limit")
+    try:
+        embedding = await asyncio.to_thread(voice_embedding, audio)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    await settings_svc.set("voice_auth_profile", {"embedding": embedding, "created_at": time.time()})
+    return {
+        "enrolled": True,
+        "message": "Voice profile saved locally. This approximate match is not security-grade authentication.",
+    }
+
+
+@app.post("/api/voice-auth/verify")
+async def verify_voice(request: Request):
+    profile = await settings_svc.get("voice_auth_profile")
+    if not profile or not profile.get("embedding"):
+        raise ValidationError("Enroll a voice profile before verification")
+    audio = await request.body()
+    if len(audio) > 5_000_000:
+        raise ValidationError("Voice sample exceeds the 5 MB limit")
+    try:
+        sample = await asyncio.to_thread(voice_embedding, audio)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    score = similarity(profile["embedding"], sample)
+    threshold = 0.82
+    return {
+        "matched": score >= threshold,
+        "score": round(score, 3),
+        "threshold": threshold,
+        "warning": "Approximate local speaker match only; not suitable for protecting actions or data.",
+    }
+
+
+@app.delete("/api/voice-auth/profile")
+async def delete_voice_profile():
+    deleted = await settings_svc.delete("voice_auth_profile")
+    return {"deleted": deleted}
 
 
 # ===================================================================
@@ -886,7 +1109,12 @@ async def ws_audio(websocket: WebSocket):
                     if segment:
                         session.last_audio_at = time.time()
                         if not stt.is_ready:
-                            await websocket.send_json({"error": "Speech recognition model is not ready. Install backend requirements and restart Aurora."})
+                            await websocket.send_json({
+                                "error": (
+                                    "Speech recognition model is not ready. "
+                                    "Install backend requirements and restart Aurora."
+                                )
+                            })
                             continue
                         transcript = await asyncio.to_thread(stt.transcribe_pcm, segment)
                         await websocket.send_json({"transcript": transcript or ""})
@@ -917,3 +1145,15 @@ async def ws_audio(websocket: WebSocket):
         vad.flush()
     except Exception as e:
         logger.error(f"Audio WS error: {e}")
+
+
+# Serve the production React bundle when packaged or when a local build exists.
+_source_root = Path(__file__).resolve().parents[2]
+_bundle_root = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else None
+_frontend_dist = find_frontend_dist(_source_root, _bundle_root)
+if _frontend_dist:
+    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")
+else:
+    @app.get("/", include_in_schema=False)
+    async def root_status():
+        return {"name": "Aurora Assistant API", "status": "ok"}

@@ -5,9 +5,10 @@ from typing import List
 import re
 from pypdf import PdfReader
 from docx import Document
+from ..core.config import APP_DATA_DIR
 
 
-DOCS_DIR = Path(__file__).resolve().parents[2] / "data" / "docs"
+DOCS_DIR = APP_DATA_DIR / "docs"
 
 
 def list_supported_documents() -> List[Path]:
@@ -73,5 +74,3 @@ def load_all_chunks() -> List[str]:
         txt = read_text(f)
         all_chunks.extend(chunk_text(txt))
     return all_chunks
-
-

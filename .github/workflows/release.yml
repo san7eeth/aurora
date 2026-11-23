@@ -1,0 +1,48 @@
+name: Aurora Release Artifacts
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend bundle
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+      - name: Build release images
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          docker build -t "aurora-backend:${VERSION}" ./backend
+          docker build --build-arg VITE_WS_BASE=ws://localhost:8000 -t "aurora-frontend:${VERSION}" ./frontend
+      - name: Assemble checksummed release assets
+        run: |
+          mkdir -p release
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp -R frontend/dist release/frontend-dist
+          docker save "aurora-backend:${VERSION}" "aurora-frontend:${VERSION}" -o "release/aurora-docker-images-${VERSION}.tar"
+          printf 'version=%s\ncommit=%s\ncreated_utc=%s\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" "$(date -u +%FT%TZ)" > release/manifest.txt
+          cd release && zip -qr "aurora-frontend-${VERSION}.zip" frontend-dist manifest.txt
+          sha256sum release/aurora-docker-images-*.tar "release/aurora-frontend-${VERSION}.zip" release/manifest.txt > release/SHA256SUMS
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release/aurora-docker-images-*.tar
+            release/aurora-frontend-*.zip
+            release/SHA256SUMS
+            release/manifest.txt

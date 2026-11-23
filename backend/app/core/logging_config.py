@@ -6,6 +6,8 @@ import logging
 import sys
 import json
 from datetime import datetime, timezone
+import os
+from pathlib import Path
 
 
 class JSONFormatter(logging.Formatter):
@@ -36,7 +38,13 @@ def configure_logging(level: str = "INFO", json_logs: bool = False) -> None:
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
     root.handlers.clear()
 
-    handler = logging.StreamHandler(sys.stdout)
+    log_file = os.environ.get("AURORA_LOG_FILE")
+    if log_file:
+        path = Path(log_file).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handler = logging.FileHandler(path, encoding="utf-8")
+    else:
+        handler = logging.StreamHandler(sys.stdout)
     if json_logs:
         handler.setFormatter(JSONFormatter())
     else:

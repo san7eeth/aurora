@@ -15,6 +15,8 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking, microph
   const [isListening, setIsListening] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [waveformData, setWaveformData] = useState<number[]>(Array(12).fill(0));
+  const waveformDataRef = useRef(waveformData);
+  waveformDataRef.current = waveformData;
   const [isHovered, setIsHovered] = useState(false);
   const orbRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
@@ -82,7 +84,7 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking, microph
       }
     };
 
-    if (isListening || isSpeaking || waveformData.some(val => val > 0)) {
+    if (isListening || isSpeaking || waveformDataRef.current.some(val => val > 0)) {
       animationRef.current = requestAnimationFrame(animate);
     }
 
@@ -101,7 +103,9 @@ export default function VoiceMicOrb({ isDarkMode, sendAudio, isSpeaking, microph
         echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       } });
       mediaStreamRef.current = stream;
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextConstructor = window.AudioContext ?? window.webkitAudioContext;
+      if (!AudioContextConstructor) throw new Error('Web Audio is not supported by this browser.');
+      audioContextRef.current = new AudioContextConstructor();
       const audioContext = audioContextRef.current;
 
       onDevicesFound((await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === 'audioinput'));

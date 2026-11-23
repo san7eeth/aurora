@@ -13,8 +13,8 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: [
-    ['html', { outputFolder: 'playwright-report', open: 'never' }],
-    ['junit', { outputFile: 'playwright-results.xml' }],
+    ['html', { outputFolder: `${process.env.PLAYWRIGHT_OUTPUT_DIR || '.'}/playwright-report`, open: 'never' }],
+    ['junit', { outputFile: `${process.env.PLAYWRIGHT_OUTPUT_DIR || '.'}/playwright-results.xml` }],
     ['list'],
   ],
   use: {

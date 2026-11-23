@@ -9,6 +9,7 @@ import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.testng.ITestResult;
 import org.testng.annotations.*;
 
@@ -49,7 +50,7 @@ public class BaseTest {
     }
 
     @BeforeMethod(alwaysRun = true)
-    public void initDriver() {
+    public void initDriver() throws Exception {
         WebDriverManager.chromedriver().setup();
         ChromeOptions options = new ChromeOptions();
         options.addArguments(
@@ -59,7 +60,10 @@ public class BaseTest {
             "--window-size=1920,1080",
             "--disable-gpu"
         );
-        driver = new ChromeDriver(options);
+        String remoteUrl = System.getenv("SELENIUM_REMOTE_URL");
+        driver = remoteUrl == null || remoteUrl.isBlank()
+            ? new ChromeDriver(options)
+            : new RemoteWebDriver(java.net.URI.create(remoteUrl).toURL(), options);
         driver.manage().window().maximize();
     }
 

@@ -1,7 +1,7 @@
 # Aurora – Development Roadmap
 **Created:** 2026-11-21  
 **Target:** Aurora 1.0 — Stable, installable, locally hosted AI desktop assistant
-**Last Status Update:** 2026-11-23 17:01 IST
+**Last Status Update:** 2026-11-23 19:05 IST
 
 ---
 
@@ -17,7 +17,7 @@
 
 **Decision:** Keep the existing React + Vite + Tailwind stack. Add all missing screens.  
 **Reason:** `VoiceMicOrb.tsx` and the WebSocket hook are genuinely good. Rewriting in Electron or Tauri would delay the project by weeks and add complexity.  
-**Desktop packaging:** Use **Tauri** (Rust-based) or **Electron** in Phase 10 to wrap the frontend into a `.exe` installer. Decision to be confirmed before Phase 10.
+**Desktop packaging:** Use PyInstaller with the Vite production build to bundle the FastAPI service and serve the UI locally. This follows the Phase 10 decision and avoids adding a desktop framework.
 
 ---
 
@@ -135,73 +135,98 @@ Tasks:
 
 ---
 
-### Phase 7 – Advanced AI
+### Phase 7 – Advanced AI ✅ IMPLEMENTATION COMPLETE (updated 2026-11-23 17:16 IST)
 **Goal:** Voice authentication, agentic tool execution, desktop automation.
 
 Tasks:
-- [ ] Voice enrollment: record and store voice embeddings (speaker verification)
-- [ ] Voice verification: compare incoming audio to stored profile
-- [ ] Tool calling framework: define tool schemas, dispatch, result injection
-- [ ] Implement safe tools: system info, file list, app launch, clipboard read
-- [ ] Implement task planning: multi-step tool sequences
-- [ ] Add confirmation UI for sensitive actions
-- [ ] Add execution history to database
-- [ ] Build **Agent / task management screen**
+- [x] Voice enrollment: record and store local speaker feature vectors
+- [x] Voice verification: compare a new sample with the saved profile (approximate match only)
+- [x] Tool calling framework: schemas, strict allowlist validation, dispatch, and tool-result injection into a summary
+- [x] Implement allowlisted tools: system info, uploaded-file listing, app launch, clipboard read
+- [x] Implement model-generated multi-step plans, limited to five allowlisted steps
+- [x] Require explicit review and confirmation before executing every plan
+- [x] Persist plans, approval state, and redacted execution history in SQLite
+- [x] Build **Agent / task management screen** with plan preview, approve/cancel, history, and voice-profile controls
+
+**Verification:** Frontend build and TypeScript check passed; backend compile passed. Runtime API/tool/voice-profile flows remain for Phase 9 verification. Voice matching is a convenience feature and must not be used to protect actions or data.
 
 ---
 
-### Phase 8 – UI and UX Polish
+### Pre-Phase 8 – Modern Software Development and DevOps ⚠️ CONFIGURED; LIVE WORKFLOWS UNVERIFIED (updated 2026-11-23 17:57 IST)
+**Goal:** Make Aurora a practical learning project for team planning, source control, CI/CD, containers, testing, quality, releases, and operations.
+
+Tasks:
+- [x] Document manual Jira epics, stories, tasks, bugs, sprint planning/review, estimates, and acceptance criteria; add matching GitHub issue templates
+- [x] Document feature/bugfix branches, PR review, protected branches, secrets, and version tags
+- [x] Add GitHub Actions workflows for lint, unit/integration, UI/API, Java QA, dependency/security checks, container builds, and release assets
+- [x] Replace Jenkins fail-open stages with required checks, test reports, SonarQube gate, build/package, manual staging approval, and rollback procedure
+- [x] Containerize the backend and static frontend; add isolated test/E2E profiles, volumes, networking, health checks, and host-managed Ollama
+- [x] Add pytest, Playwright, and separate Maven/TestNG/Selenium/REST Assured/Cucumber workflows and examples
+- [x] Add SonarQube project and Jenkins scanner configuration
+- [x] Add local Prometheus metrics and provisioned Grafana dashboard
+- [x] Add staging, checksummed release artifacts, deployment health checks, and rollback scripts
+- [ ] Configure Jira/GitHub/Jenkins/SonarQube accounts and credentials on the user's hosts; exercise full CI/staging lifecycle
+- [x] Produce the native Windows installer in Phase 10; clean-system validation is tracked as a remaining verification task
+
+**Status:** Workflow and service configuration is present and Compose syntax was validated. Feature behavior is not marked complete until the automated suites and live CI/staging lifecycle pass. External accounts and credentials are not configured here. Phase 8 remains unstarted.
+
+---
+
+### Phase 8 – UI and UX Polish ⚠️ BUILD VERIFIED; INTERACTION VERIFICATION PENDING (updated 2026-11-23 18:08 IST)
 **Goal:** Premium, dark-themed, polished desktop experience.
 
 Tasks:
-- [ ] Apply consistent dark theme (black/charcoal backgrounds, cyan/blue accents)
-- [ ] Add side navigation bar with all screens
-- [ ] Add smooth page transitions (Framer Motion)
-- [ ] Add system status panel (Ollama status, model loaded, memory usage)
-- [ ] Add first-run setup wizard (username, model selection, voice enrollment)
-- [ ] Polish all existing screens
-- [ ] Add keyboard shortcuts
-- [ ] Add error boundary components
+- [~] Apply consistent dark theme (black/charcoal backgrounds, cyan/blue accents) and a light theme toggle
+- [~] Keep responsive side navigation for all eight screens
+- [~] Add Framer Motion page and setup-step transitions
+- [~] Add live backend/Ollama/database and selected-model status; show browser JS heap only when the browser exposes it
+- [~] Add first-run wizard for username, installed model selection, and optional voice enrollment
+- [~] Replace dashboard sample data and polish shared shell, focus, scrollbar, and reduced-motion styles
+- [~] Add keyboard shortcuts for new chat, screen navigation, help, and dialog dismissal
+- [~] Add an error boundary with recovery action
+
+`[~]` means implementation is present and static checks pass, while the interactive behavior has not yet been verified. The browser heap metric is not system RAM usage.
 
 ---
 
 ### Phase 9 – Testing
 **Goal:** Test coverage for all critical paths.
 
-Tests to create:
-- [ ] `test_startup.py` — backend starts, health endpoint returns 200
-- [ ] `test_ollama.py` — Ollama connectivity, model listing
-- [ ] `test_websocket.py` — WS connect, message, disconnect
-- [ ] `test_streaming.py` — streaming tokens arrive incrementally
-- [ ] `test_rag.py` — document ingest, retrieve, answer
-- [ ] `test_memory.py` — memory store, retrieve, delete
-- [ ] `test_database.py` — SQLite init, CRUD operations
-- [ ] `test_tts.py` — synthesis produces non-empty bytes
-- [ ] `test_stt.py` — transcription returns text from WAV fixture
-- [ ] `test_voice_auth.py` — enroll, verify, reject
-- [ ] `test_tools.py` — tool dispatch, safe execution
-- [ ] `test_error_handling.py` — Ollama down, corrupt file, bad session
+**Status:** ⚠️ Coverage added; selected synchronous tests pass. Async/API/WebSocket suites are not verified in this managed Windows environment because local socket-pair creation is blocked. See `DEVELOPMENT_PROGRESS.md`.
+
+Tests and evidence:
+- [~] `test_startup.py` plus API health checks — live `/health` smoke passed; async/startup and TestClient tests remain blocked here
+- [~] `test_ollama.py` — mocked connectivity/model listing/stream tests authored; async runner blocked here
+- [~] `test_websocket.py` — connect, message, and invalid audio-session cases exist; integration runner blocked here
+- [~] `test_streaming.py` — mocked incremental stream parser test authored; async runner blocked here
+- [x] RAG (`test_rag_service.py`) — 5 retrieval/index tests passed; uses mocked embeddings
+- [~] `test_memory.py` — isolated SQLite store/retrieve/update/delete authored; async DB runner blocked here
+- [~] `test_database.py` — SQLite CRUD authored; schema/model checks pass; async CRUD blocked here
+- [x] `test_tts.py` — generated WAV bytes using a fake OS voice engine; passed
+- [x] `test_stt.py` — transcribes generated PCM through a validated WAV fixture and fake recognizer; passed
+- [~] `test_voice_auth.py` — 3 embedding tests passed; API enroll/verify/reject lifecycle authored but not run
+- [x] `test_tools.py` and `test_agent_tools.py` — allowlist and safety tests passed
+- [~] `test_error_handling.py` — corrupt/unsupported-document cases passed; async Ollama failure and WebSocket bad-session checks not run
+
+`[~]` means tests were added or already existed, but full verification is pending. `test_rag_service.py` fulfills the planned RAG coverage filename; WebSocket cases live in `tests/integration/test_websocket.py`.
 
 ---
 
-### Phase 10 – Desktop Packaging
+### Phase 10 – Desktop Packaging ⚠️ PACKAGE BUILT AND SMOKE TESTED; CLEAN SYSTEM TEST PENDING (updated 2026-11-23 19:59 IST)
 **Goal:** Installable Windows `.exe`.
 
-**Decision to be confirmed before this phase:**
-- **Option A: Tauri** — Rust + WebView2; small installer (~10MB); requires Rust toolchain
-- **Option B: Electron** — Node.js; larger installer (~150MB); simpler setup
-- **Option C: PyInstaller + Vite build** — bundle FastAPI as `.exe` + serve built frontend; no Electron
-
-Recommended: **Option C** (simplest; no new runtimes; ships as `aurora.exe` + `frontend/` build).
+**Decision:** Option C — PyInstaller + Vite build, serving the React frontend from FastAPI. The packaged app stores writable files under the user's Local AppData directory.
 
 Tasks:
-- [ ] Build frontend (`npm run build`)
-- [ ] Serve frontend static files from FastAPI (mount `/` → `dist/`)
-- [ ] Package backend with PyInstaller into single `.exe`
-- [ ] Create NSIS or Inno Setup installer script
-- [ ] Add application icon
-- [ ] Create startup/shutdown scripts
-- [ ] Test installation on clean Windows system
+- [x] Build frontend (`npm run build`; production build passed 2026-11-23)
+- [x] Serve frontend static files from FastAPI (static mount smoke check passed)
+- [x] Package backend with PyInstaller into single `.exe` — built and launched successfully with local health/static UI checks
+- [x] Create Inno Setup installer script — compiled with Inno Setup 7.1.1; temporary install/uninstall smoke passed
+- [x] Add application icon
+- [x] Create startup/shutdown scripts — PowerShell parser checks passed
+- [~] Test installation on clean Windows system — temporary local install/uninstall passed; separate clean account/VM remains pending
+
+The artifacts are built and locally smoke-tested, but no clean Windows account/VM validation has been run. See `packaging/README.md` and the Phase 10 entry in `DEVELOPMENT_PROGRESS.md` for evidence and remaining checks.
 
 ---
 
@@ -243,6 +268,6 @@ Tasks:
 | B1 | Python 3.14.2 installed globally — most ML packages lack 3.14 wheels | Install Python 3.12 or use `py -3.12`? |
 | B2 | ffmpeg not installed | Install ffmpeg for voice features? |
 | B3 | Ollama not running | Start Ollama and confirm which models are installed |
-| B4 | Desktop packaging method (Phase 10) | PyInstaller + static serve, Tauri, or Electron? |
+| B4 | Desktop packaging method (Phase 10) | Resolved: PyInstaller + static serve |
 
 The original Phase 2 blockers above are historical and should not be treated as current gating items. Phase 2 implementation is complete; live backend and WebSocket checks could not run because this environment denied loopback socket access. Phase 3 architecture is complete; its async startup-check test is tracked for the Phase 9 test pass. Ollama availability is environment-dependent; the application reports degraded AI health when Ollama is unavailable.

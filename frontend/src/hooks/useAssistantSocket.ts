@@ -8,7 +8,7 @@ export interface ChatMessage {
 
 type ConnectionMode = 'chat' | 'voice';
 
-const wsBase = () => (import.meta as any).env?.VITE_WS_BASE || 'ws://localhost:8000';
+const wsBase = () => import.meta.env.VITE_WS_BASE || 'ws://localhost:8000';
 
 export function useAssistantWebSocket(
   conversationId: string | null,
@@ -60,7 +60,9 @@ export function useAssistantWebSocket(
           try {
             playbackSourceRef.current?.stop();
             await playbackContextRef.current?.close();
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const AudioContextConstructor = window.AudioContext ?? window.webkitAudioContext;
+            if (!AudioContextConstructor) throw new Error('Web Audio is not supported by this browser.');
+            const audioContext = new AudioContextConstructor();
             playbackContextRef.current = audioContext;
             const buffer = await audioContext.decodeAudioData(await event.data.arrayBuffer());
             const source = audioContext.createBufferSource();

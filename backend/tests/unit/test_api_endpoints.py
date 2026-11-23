@@ -1,5 +1,4 @@
 """Unit tests — FastAPI REST endpoints (v0.3.0)."""
-import pytest
 
 
 def test_health_returns_200(test_client):
@@ -105,6 +104,30 @@ def test_get_settings_returns_200(test_client):
     r = test_client.get("/api/settings")
     assert r.status_code == 200
     assert "settings" in r.json()
+
+
+def test_metrics_exposes_request_counters(test_client):
+    response = test_client.get("/metrics")
+    assert response.status_code == 200
+    assert "aurora_http_requests_total" in response.text
+
+
+def test_voice_profile_cannot_be_written_through_general_settings(test_client):
+    response = test_client.post("/api/settings", json={"voice_auth_profile": {"embedding": [1]}})
+    assert response.status_code == 400
+
+
+def test_agent_execution_requires_explicit_confirmation(test_client):
+    response = test_client.post("/api/agent/execute", json={"plan_id": "does-not-exist", "confirmed": False})
+    assert response.status_code == 400
+
+
+def test_agent_tool_registry_returns_allowlisted_tools(test_client):
+    response = test_client.get("/api/agent/tools")
+    assert response.status_code == 200
+    assert {tool["name"] for tool in response.json()["tools"]} == {
+        "system_info", "list_files", "launch_app", "clipboard_read"
+    }
 
 
 def test_update_settings(test_client):

@@ -17,7 +17,7 @@ public class AuroraHomePage {
 
     private final WebDriver driver;
     private final WebDriverWait wait;
-    public static final String BASE_URL = "http://localhost:5173";
+    public static final String BASE_URL = System.getenv().getOrDefault("AURORA_URL", "http://localhost:5173");
 
     // Locators
     private static final By HEADER_TITLE      = By.tagName("h1");
@@ -28,6 +28,8 @@ public class AuroraHomePage {
     private static final By MESSAGE_LIST      = By.cssSelector("[data-testid='message'], .message-bubble");
     private static final By CONNECTION_DOT    = By.cssSelector("[data-testid='connection-status']");
     private static final By MODEL_SELECTOR    = By.cssSelector("[data-testid='model-select'], select");
+    private static final By AGENT_NAVIGATION = By.xpath("//nav//button[.//span[normalize-space()='Agent']]");
+    private static final By AGENT_HEADING = By.xpath("//h1[normalize-space()='Agent tasks']");
 
     public AuroraHomePage(WebDriver driver) {
         this.driver = driver;
@@ -83,6 +85,14 @@ public class AuroraHomePage {
 
     public void clickAiOrb() {
         wait.until(ExpectedConditions.elementToBeClickable(AI_ORB)).click();
+    }
+
+    public void openAgentTasks() {
+        wait.until(ExpectedConditions.elementToBeClickable(AGENT_NAVIGATION)).click();
+    }
+
+    public String getAgentHeading() {
+        return wait.until(ExpectedConditions.visibilityOfElementLocated(AGENT_HEADING)).getText();
     }
 
     public void waitForMessageCount(int expectedCount) {

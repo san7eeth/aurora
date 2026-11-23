@@ -144,3 +144,19 @@ class Setting(Base):
     key = Column(String(128), primary_key=True)
     value = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=_now, onupdate=_now, nullable=False)
+
+
+class AgentRun(Base):
+    """Persisted agent plans, approval state, and redacted execution outcomes."""
+
+    __tablename__ = "agent_runs"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    task = Column(Text, nullable=False)
+    plan = Column(JSON, nullable=False)
+    status = Column(String(32), nullable=False, default="awaiting_confirmation")
+    result = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=_now, nullable=False)
+    updated_at = Column(DateTime, default=_now, onupdate=_now, nullable=False)
+
+    __table_args__ = (Index("ix_agent_run_created", "created_at"),)

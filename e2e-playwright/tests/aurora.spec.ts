@@ -22,6 +22,8 @@ async function waitForAppReady(page: Page) {
   await page.waitForSelector('#root', { timeout: 10_000 });
   // A short pause for React to finish rendering
   await page.waitForTimeout(500);
+  const skipSetup = page.getByRole('button', { name: 'Skip setup' });
+  if (await skipSetup.isVisible().catch(() => false)) await skipSetup.click();
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +69,29 @@ test.describe('Aurora – Navigation', () => {
     // Aurora uses a sidebar for navigation
     const nav = page.locator('nav, aside, [data-testid="sidebar"]').first();
     await expect(nav).toBeVisible({ timeout: 8_000 });
+  });
+
+  test('first-run setup is available on a fresh browser profile', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('dialog', { name: 'Set up Aurora' })).toBeVisible();
+    await expect(page.getByLabel('What should Aurora call you?')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Skip setup' })).toBeVisible();
+  });
+
+  test('keyboard shortcuts open screens and help', async ({ page }) => {
+    await page.keyboard.press('Alt+8');
+    await expect(page.getByRole('heading', { name: /Welcome/ })).toBeVisible();
+    await page.keyboard.press('?');
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toHaveCount(0);
+  });
+
+  test('theme toggle exposes an accessible control', async ({ page }) => {
+    const toggle = page.getByRole('button', { name: /Switch to (light|dark) theme/ });
+    await expect(toggle).toBeVisible();
+    await toggle.click();
+    await expect.poll(() => page.locator('html').evaluate((element) => getComputedStyle(element).colorScheme)).toBe('light');
   });
 });
 

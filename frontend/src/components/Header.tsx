@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Cpu, Moon, Sun, Sparkles } from 'lucide-react';
+import { Cpu, Moon, Settings2, Sun } from 'lucide-react';
 
 type ServiceStatus = 'checking' | 'online' | 'degraded' | 'offline';
 
 interface HeaderProps {
   onToggleView: () => void;
   onToggleDarkMode: () => void;
+  onOpenSetup: () => void;
   isDarkMode: boolean;
   activeModel: string;
 }
 
-export default function Header({ onToggleView, onToggleDarkMode, isDarkMode, activeModel }: HeaderProps) {
+export default function Header({ onToggleView, onToggleDarkMode, onOpenSetup, isDarkMode, activeModel }: HeaderProps) {
   const [now, setNow] = useState(() => new Date());
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus>('checking');
 
@@ -52,23 +53,23 @@ export default function Header({ onToggleView, onToggleDarkMode, isDarkMode, act
         : 'Checking backend';
 
   return (
-    <div className="flex justify-between items-center mb-8">
-      <button onClick={onToggleView} className={`text-2xl font-bold transition-colors duration-300 ${
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
+      <button onClick={onToggleView} className={`text-xl font-bold transition-colors duration-300 sm:text-2xl ${
         isDarkMode ? 'text-white' : 'text-gray-900'
       }`}>Aurora</button>
       
-      <div className={`flex items-center gap-2 text-sm transition-colors duration-300 ${
+      <div className={`flex min-w-0 items-center gap-2 text-xs transition-colors duration-300 sm:text-sm ${
         isDarkMode ? 'text-gray-400' : 'text-gray-500'
       }`}>
         <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${statusColor}`} aria-label={statusLabel} title={statusLabel}></div>
-        <span>{now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })} • {now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="hidden sm:inline">{now.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })} • </span><span>{now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
         <span className="mx-1 opacity-40">·</span>
         <Cpu size={14} aria-hidden="true" />
         <span className="max-w-32 truncate" title={activeModel || 'No active model'}>{activeModel || 'No active model'}</span>
       </div>
       
       <div className="flex items-center gap-3">
-        <button 
+        <button aria-label={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'} title={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
           className={`p-2 transition-colors duration-300 ${
             isDarkMode 
               ? 'text-gray-400 hover:text-white' 
@@ -78,12 +79,12 @@ export default function Header({ onToggleView, onToggleDarkMode, isDarkMode, act
         >
           {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
         </button>
-        <button className={`p-2 transition-colors duration-300 ${
+        <button aria-label="Personalize Aurora" title="Personalize Aurora" onClick={onOpenSetup} className={`rounded-lg p-2 transition-colors duration-300 ${
           isDarkMode 
             ? 'text-gray-400 hover:text-white' 
             : 'text-gray-600 hover:text-gray-900'
         }`}>
-          <Sparkles size={20} />
+          <Settings2 size={20} />
         </button>
       </div>
     </div>

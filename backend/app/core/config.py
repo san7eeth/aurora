@@ -6,9 +6,11 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .exceptions import ConfigurationError
+from .runtime_paths import app_data_dir
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_DB_PATH = BACKEND_DIR / "data" / "aurora.db"
+APP_DATA_DIR = app_data_dir(BACKEND_DIR / "data")
+DEFAULT_DB_PATH = APP_DATA_DIR / "aurora.db"
 
 load_dotenv(BACKEND_DIR / ".env")
 
@@ -16,7 +18,7 @@ load_dotenv(BACKEND_DIR / ".env")
 class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2:3b"
-    backend_host: str = "0.0.0.0"
+    backend_host: str = "127.0.0.1"
     backend_port: int = 8000
     vite_origin: str = "http://localhost:5173"
     database_url: str = "sqlite+aiosqlite:///./aurora.db"
@@ -38,7 +40,7 @@ def resolve_sqlite_url(url: str | None) -> tuple[str, Path]:
     """
     Turn a SQLite SQLAlchemy URL into an absolute aiosqlite URL and filesystem path.
 
-    Relative URLs (including the default `./aurora.db`) are stored under backend/data
+    Relative URLs (including the default `./aurora.db`) are stored under the app data directory
     so the database location does not depend on the process working directory.
     """
     raw = (url or "").strip()

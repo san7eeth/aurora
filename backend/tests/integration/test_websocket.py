@@ -1,73 +1,78 @@
-"""Integration tests — WebSocket /ws and /ws/audio endpoints."""
+"""WebSocket integration checks with local model and retrieval services isolated."""
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 
-@pytest.mark.integration
-def test_ws_chat_connect_returns_session_id():
-    """On connect, client must receive connected message with UUID session_id."""
-    with patch("app.intent.intent_router.IntentRouter.generate", return_value="hi"), \
-         patch("app.perception.tts.Pyttsx3TTS.synthesize", return_value=None), \
-         patch("app.intent.rag_service.RAGService.retrieve", return_value=[]):
-        from app.api import app
-        client = TestClient(app)
-        with client.websocket_connect("/ws") as ws:
-            msg = ws.receive_json()
-            assert msg["message"] == "connected"
-            assert "session_id" in msg
-            sid = msg["session_id"]
-            assert len(sid) == 36  # UUID format: 8-4-4-4-12
+class LocalOllamaStub:
+    async def is_available(self):
+        return True
+
+    async def list_models(self):
+        return ["test-model"]
+
+    async def generate(self, *_args, **_kwargs):
+        return "[]"
+
+    async def generate_stream(self, *_args, **_kwargs):
+        yield "Aurora "
+        yield "responding!"
 
 
-@pytest.mark.integration
-def test_ws_chat_receives_greeting():
-    """After session_id, server sends personalised greeting."""
-    with patch("app.intent.intent_router.IntentRouter.generate", return_value="hi"), \
-         patch("app.perception.tts.Pyttsx3TTS.synthesize", return_value=None), \
-         patch("app.intent.rag_service.RAGService.retrieve", return_value=[]):
-        from app.api import app
-        client = TestClient(app)
-        with client.websocket_connect("/ws") as ws:
-            ws.receive_json()  # connected
-            greeting = ws.receive_json()
-            assert "message" in greeting
-            assert len(greeting["message"]) > 5
-
-
-@pytest.mark.integration
-def test_ws_chat_send_and_receive():
-    """Client sends message; server responds with LLM answer."""
-    with patch("app.intent.intent_router.IntentRouter.generate",
-               return_value="Aurora responding!"), \
-         patch("app.perception.tts.Pyttsx3TTS.synthesize", return_value=None), \
-         patch("app.intent.rag_service.RAGService.retrieve", return_value=[]):
-        from app.api import app
-        client = TestClient(app)
-        with client.websocket_connect("/ws") as ws:
-            ws.receive_json()  # connected
-            ws.receive_json()  # greeting
-            ws.send_json({"message": "Hello Aurora!"})
-            response = ws.receive_json()
-            assert "message" in response
-            assert response["message"] == "Aurora responding!"
-
-
-@pytest.mark.integration
-def test_ws_audio_missing_session_id_returns_error():
-    """Audio WS without session_id query param must send error and close."""
+@pytest.fixture
+def websocket_client(isolated_database, monkeypatch):
     from app.api import app
-    client = TestClient(app)
-    with client.websocket_connect("/ws/audio") as ws:
-        err = ws.receive_json()
-        assert "error" in err
+    from app.core.health import startup_state
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "ollama_model", "llama3.2:3b")
+    startup_state.database = "pending"
+    startup_state.database_error = None
+
+    with patch("app.api.ollama_svc", LocalOllamaStub()), \
+            patch("app.api.retrieve_context", new=AsyncMock(return_value=([], []))), \
+            patch("app.api.get_tts", return_value=SimpleNamespace(is_ready=False)):
+        with TestClient(app, raise_server_exceptions=False) as client:
+            yield client
 
 
 @pytest.mark.integration
-def test_ws_audio_invalid_session_id_returns_error():
-    """Audio WS with non-existent session_id must return error."""
-    from app.api import app
-    client = TestClient(app)
-    with client.websocket_connect("/ws/audio?session_id=does-not-exist") as ws:
-        err = ws.receive_json()
-        assert "error" in err
+def test_ws_chat_connect_returns_session_id(websocket_client):
+    with websocket_client.websocket_connect("/ws?mode=chat") as ws:
+        connected = ws.receive_json()
+        assert connected["type"] == "connected"
+        assert len(connected["session_id"]) == 36
+
+
+@pytest.mark.integration
+def test_voice_session_sends_greeting(websocket_client):
+    with websocket_client.websocket_connect("/ws?mode=voice") as ws:
+        assert ws.receive_json()["type"] == "connected"
+        greeting = ws.receive_json()
+        assert greeting["type"] == "message"
+        assert "How can I help" in greeting["message"]
+
+
+@pytest.mark.integration
+def test_ws_chat_streams_response_events(websocket_client):
+    with websocket_client.websocket_connect("/ws?mode=chat") as ws:
+        ws.receive_json()
+        ws.send_json({"message": "Hello Aurora"})
+        events = [ws.receive_json() for _ in range(4)]
+        assert [event["type"] for event in events] == ["start", "token", "token", "done"]
+        assert events[-1]["message"] == "Aurora responding!"
+
+
+@pytest.mark.integration
+def test_ws_audio_missing_session_id_returns_error(websocket_client):
+    with websocket_client.websocket_connect("/ws/audio") as ws:
+        assert "error" in ws.receive_json()
+
+
+@pytest.mark.integration
+def test_ws_audio_invalid_session_id_returns_error(websocket_client):
+    with websocket_client.websocket_connect("/ws/audio?session_id=does-not-exist") as ws:
+        assert "error" in ws.receive_json()

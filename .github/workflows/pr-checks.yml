@@ -1,39 +1,25 @@
-name: PR Quality Gate
+name: PR Security and Dependency Review
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
-  quality-gate:
-    name: Quality Gate
+  dependency-review:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
         with:
-          fetch-depth: 0
+          fail-on-severity: high
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install quality tools
-        run: pip install flake8 bandit
-
-      - name: Lint check (must pass)
-        working-directory: backend
-        run: flake8 app/ --max-line-length=120 --count --statistics
-
-      - name: Security check (high severity blocks PR)
-        working-directory: backend
-        run: bandit -r app/ --severity-level high
-
-      - name: Check no secrets committed
-        run: |
-          if git diff origin/${{ github.base_ref }}...HEAD -- '*.py' '*.env' '*.json' '*.yml' \
-            | grep -iE '(password|api_key|secret|token)\s*=\s*["'"'"'][^"'"'"']{8,}'; then
-            echo "ERROR: Potential secret detected in diff!"
-            exit 1
-          fi
-          echo "Secret scan: clean"
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan commits for secrets
+        run: docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.24.2 detect --source=/repo --redact --no-banner

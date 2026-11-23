@@ -65,5 +65,3 @@ class Pyttsx3TTS:
                 os.remove(path)
             except Exception:
                 pass
-
-

@@ -1,0 +1,36 @@
+{
+  "uid": "aurora-overview",
+  "title": "Aurora Service Overview",
+  "tags": ["aurora", "local"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "HTTP requests per second",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "aurora-prometheus" },
+      "targets": [{ "expr": "rate(aurora_http_requests_total[1m])", "legendFormat": "requests/sec", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "HTTP server errors per second",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "aurora-prometheus" },
+      "targets": [{ "expr": "rate(aurora_http_server_errors_total[1m])", "legendFormat": "5xx/errors per sec", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Mean request handling time (5m)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "aurora-prometheus" },
+      "targets": [{ "expr": "rate(aurora_http_request_duration_seconds_sum[5m]) / clamp_min(rate(aurora_http_requests_total[5m]), 0.001)", "legendFormat": "seconds", "refId": "A" }]
+    }
+  ]
+}

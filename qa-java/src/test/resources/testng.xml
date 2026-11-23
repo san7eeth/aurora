@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
-<suite name="Aurora Test Suite" verbose="2" parallel="methods" thread-count="2">
-
-    <listeners>
-        <listener class-name="com.aurora.utils.ExtentReportListener"/>
-    </listeners>
+<suite name="Aurora Test Suite" verbose="2" parallel="false">
 
     <test name="API Tests">
         <classes>
@@ -15,6 +11,12 @@
     <test name="UI Tests">
         <classes>
             <class name="com.aurora.tests.AuroraUITest"/>
+        </classes>
+    </test>
+
+    <test name="BDD API Scenarios">
+        <classes>
+            <class name="com.aurora.tests.AuroraBDDTest"/>
         </classes>
     </test>
 
