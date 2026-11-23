@@ -4,6 +4,10 @@ User-facing and workflow changes are recorded here. Dates use Asia/Calcutta loca
 
 ## Unreleased — 2026-11-23
 
+### Security
+
+- Updated `python-multipart` from 0.0.9 to 0.0.34 to address the reported high-severity multipart parser advisories.
+
 ### Phase 10 packaging work
 
 - Added same-origin frontend serving, per-user packaged data paths, Windows start/stop control, PyInstaller and Inno Setup definitions, an app icon, and build documentation.

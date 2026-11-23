@@ -1,5 +1,41 @@
 # Aurora – Development Progress
-**Last Updated:** 2026-11-23 19:59 IST
+**Last Updated:** 2026-11-23 20:27 IST
+
+---
+
+## Security gate remediation – python-multipart
+
+**Updated:** 2026-11-23 20:27 IST
+
+### Completed tasks
+- Raised the exact `python-multipart` pin from `0.0.9` to `0.0.34`, above the fixed versions for all four high-severity advisories reported by GitHub Dependency Review.
+- Updated the security notes and changelog; the Scorecard items in the supplied job output are warnings, while the explicit failure is the vulnerable dependency finding.
+- Rebuilt the ignored local Windows executable and installer using the patched dependency.
+
+### Modified files
+- `backend/requirements.txt`
+- `SECURITY.md`
+- `CHANGELOG.md`
+- `DEVELOPMENT_PROGRESS.md`
+- Ignored local build outputs regenerated: `release/pyinstaller/Aurora.exe`, `release/installer/Aurora-Setup-0.3.0-x64.exe`.
+
+### Tests executed
+- `backend/.venv/Scripts/python.exe -m pip show python-multipart`
+- `backend/.venv/Scripts/python.exe -m pip check`
+- `backend/.venv/Scripts/python.exe -m pytest backend/tests/unit/test_load_documents.py -q`
+- PyInstaller build and Inno Setup compile; packaged `/health`, `/`, and `/api/models` smoke on port 8001 with isolated data, followed by graceful stop.
+
+### Test results
+- Installed version is `0.0.34`; pip reports no broken requirements.
+- Document-loader tests: 6 passed.
+- Rebuilt package returned health `ok`, database `ok`, served the frontend (HTTP 200), returned one model, and shut down cleanly. Installer compilation passed.
+
+### Known issues
+- GitHub Dependency Review has not rerun yet. Scorecard low-score entries from the supplied log remain warnings and were not the explicit failure cause.
+- The clean Windows account/VM package test remains pending as recorded in the Phase 10 status.
+
+### Next milestone
+- Push the dependency fix and review the next Dependency Review run; address any remaining advisory findings from that run.
 
 ---
 

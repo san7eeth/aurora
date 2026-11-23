@@ -24,3 +24,5 @@ The Windows package binds only to `127.0.0.1`. Its database, uploaded documents,
 ## Reporting
 
 Do not publish secrets or exploit details in public issues. For a suspected vulnerability, contact the project maintainer privately with affected version, reproduction steps, impact, and a safe disclosure timeline. No dedicated security response service-level agreement is currently established.
+
+The backend pins `python-multipart` to a patched release. Review dependency updates against the GitHub Advisory Database before merging them.
