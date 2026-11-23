@@ -1,0 +1,39 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install quality tools
+        run: pip install flake8 bandit
+
+      - name: Lint check (must pass)
+        working-directory: backend
+        run: flake8 app/ --max-line-length=120 --count --statistics
+
+      - name: Security check (high severity blocks PR)
+        working-directory: backend
+        run: bandit -r app/ --severity-level high
+
+      - name: Check no secrets committed
+        run: |
+          if git diff origin/${{ github.base_ref }}...HEAD -- '*.py' '*.env' '*.json' '*.yml' \
+            | grep -iE '(password|api_key|secret|token)\s*=\s*["'"'"'][^"'"'"']{8,}'; then
+            echo "ERROR: Potential secret detected in diff!"
+            exit 1
+          fi
+          echo "Secret scan: clean"

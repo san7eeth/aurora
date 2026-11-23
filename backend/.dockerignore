@@ -1,0 +1,13 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+.env
+aurora.db
+data/vectorstore/
+data/docs/
+.pytest_cache
+*.log
+.coverage
+htmlcov/
+tests/

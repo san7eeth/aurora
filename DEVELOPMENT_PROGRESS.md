@@ -3,12 +3,63 @@
 
 ---
 
+## Phase 2 – Stabilization ✅ Completed
+
+**Date:** 2026-11-23
+
+### What was implemented
+- Python 3.12.10 venv created at `backend/.venv`
+- All 78 backend packages installed including: fastapi, uvicorn, faiss-cpu, sentence-transformers, faster-whisper, pyttsx3, pywin32, pydub, SQLAlchemy, aiosqlite, httpx, aiofiles
+- Switched `openai-whisper` → `faster-whisper` (better Python 3.12 + RTX 3050 support; uses CUDA fp16, falls back to CPU int8)
+- **Fixed port mismatch**: frontend WS target corrected from `8001` → `8000`
+- **Fixed async blocking**: Ollama HTTP call, TTS synthesis, STT transcription, RAG retrieval all wrapped in `asyncio.to_thread()`
+- **Added conversation history**: last 10 conversation turns injected into every LLM prompt
+- **Added `.env` / `.env.example`**: all config externalized
+- **Added `/api/models`** endpoint: lists all Ollama models
+- **Added `/api/models/select`** endpoint: switches active model at runtime
+- **Rewrote `config.py`**: pydantic-settings + python-dotenv
+- **Rewrote `intent_router.py`**: history injection, graceful Ollama error handling, runtime model switch
+- **Rewrote `stt.py`**: faster-whisper with CUDA/CPU fallback
+- **Created `run.py`**: clean entry point (replaces misleading `aurora.py` stub)
+- **Frontend `node_modules`** installed (277 packages)
+- **Updated `.gitignore`**: covers venv, .env, vectorstore, bolt artifacts
+
+### Files modified
+- `backend/requirements.txt` — updated deps, openai-whisper → faster-whisper
+- `backend/app/config.py` — full rewrite with dotenv
+- `backend/app/api.py` — full rewrite, async-safe, session history, model endpoints
+- `backend/app/intent/intent_router.py` — full rewrite with history + error handling
+- `backend/app/perception/stt.py` — full rewrite for faster-whisper
+- `backend/app/main.py` — updated
+- `frontend/vite.config.ts` — port fix + proxy config
+- `.gitignore` — updated
+
+### Files created
+- `backend/run.py` — proper entry point
+- `backend/.env` — local config (gitignored)
+- `backend/.env.example` — template committed to repo
+
+### Tests executed & results
+| Test | Result |
+|---|---|
+| All backend module imports | ✅ PASS |
+| Frontend `npm run build` (1476 modules) | ✅ PASS |
+| `GET /health` → `{"status":"ok","ollama":true,"model":"llama3.2:3b"}` | ✅ PASS |
+| `GET /api/models` → `{"models":["llama3.2:3b"],"active":"llama3.2:3b"}` | ✅ PASS |
+
+### Git checkpoint
+Commit: `1d6fa7a` — "Phase 2: Stabilization complete"
+
+### What remains
+Phases 3–11 as per roadmap. Next: Phase 3 — Architecture Refactoring (DB layer, logging, clean modules).
+
+---
 ## Milestone Tracker
 
 | Phase | Name | Status | Updated |
 |---|---|---|---|
 | 1 | Audit | ✅ Completed | 2026-11-21 |
-| 2 | Stabilization | ⏳ Pending | — |
+| 2 | Stabilization | ✅ Completed | 2026-11-23 |
 | 3 | Architecture Refactoring | ⏳ Pending | — |
 | 4 | Core AI Assistant | ⏳ Pending | — |
 | 5 | Memory and RAG | ⏳ Pending | — |
@@ -21,6 +72,57 @@
 
 ---
 
+## Phase 2 – Stabilization ✅ Completed
+
+**Date:** 2026-11-23
+
+### What was implemented
+- Python 3.12.10 venv created at `backend/.venv`
+- All 78 backend packages installed including: fastapi, uvicorn, faiss-cpu, sentence-transformers, faster-whisper, pyttsx3, pywin32, pydub, SQLAlchemy, aiosqlite, httpx, aiofiles
+- Switched `openai-whisper` → `faster-whisper` (better Python 3.12 + RTX 3050 support; uses CUDA fp16, falls back to CPU int8)
+- **Fixed port mismatch**: frontend WS target corrected from `8001` → `8000`
+- **Fixed async blocking**: Ollama HTTP call, TTS synthesis, STT transcription, RAG retrieval all wrapped in `asyncio.to_thread()`
+- **Added conversation history**: last 10 conversation turns injected into every LLM prompt
+- **Added `.env` / `.env.example`**: all config externalized
+- **Added `/api/models`** endpoint: lists all Ollama models
+- **Added `/api/models/select`** endpoint: switches active model at runtime
+- **Rewrote `config.py`**: pydantic-settings + python-dotenv
+- **Rewrote `intent_router.py`**: history injection, graceful Ollama error handling, runtime model switch
+- **Rewrote `stt.py`**: faster-whisper with CUDA/CPU fallback
+- **Created `run.py`**: clean entry point (replaces misleading `aurora.py` stub)
+- **Frontend `node_modules`** installed (277 packages)
+- **Updated `.gitignore`**: covers venv, .env, vectorstore, bolt artifacts
+
+### Files modified
+- `backend/requirements.txt` — updated deps, openai-whisper → faster-whisper
+- `backend/app/config.py` — full rewrite with dotenv
+- `backend/app/api.py` — full rewrite, async-safe, session history, model endpoints
+- `backend/app/intent/intent_router.py` — full rewrite with history + error handling
+- `backend/app/perception/stt.py` — full rewrite for faster-whisper
+- `backend/app/main.py` — updated
+- `frontend/vite.config.ts` — port fix + proxy config
+- `.gitignore` — updated
+
+### Files created
+- `backend/run.py` — proper entry point
+- `backend/.env` — local config (gitignored)
+- `backend/.env.example` — template committed to repo
+
+### Tests executed & results
+| Test | Result |
+|---|---|
+| All backend module imports | ✅ PASS |
+| Frontend `npm run build` (1476 modules) | ✅ PASS |
+| `GET /health` → `{"status":"ok","ollama":true,"model":"llama3.2:3b"}` | ✅ PASS |
+| `GET /api/models` → `{"models":["llama3.2:3b"],"active":"llama3.2:3b"}` | ✅ PASS |
+
+### Git checkpoint
+Commit: `1d6fa7a` — "Phase 2: Stabilization complete"
+
+### What remains
+Phases 3–11 as per roadmap. Next: Phase 3 — Architecture Refactoring (DB layer, logging, clean modules).
+
+---
 ## Phase 1 – Audit ✅ Completed
 
 **Date:** 2026-11-21
@@ -80,6 +182,57 @@ All phases 2–11.
 
 ---
 
+## Phase 2 – Stabilization ✅ Completed
+
+**Date:** 2026-11-23
+
+### What was implemented
+- Python 3.12.10 venv created at `backend/.venv`
+- All 78 backend packages installed including: fastapi, uvicorn, faiss-cpu, sentence-transformers, faster-whisper, pyttsx3, pywin32, pydub, SQLAlchemy, aiosqlite, httpx, aiofiles
+- Switched `openai-whisper` → `faster-whisper` (better Python 3.12 + RTX 3050 support; uses CUDA fp16, falls back to CPU int8)
+- **Fixed port mismatch**: frontend WS target corrected from `8001` → `8000`
+- **Fixed async blocking**: Ollama HTTP call, TTS synthesis, STT transcription, RAG retrieval all wrapped in `asyncio.to_thread()`
+- **Added conversation history**: last 10 conversation turns injected into every LLM prompt
+- **Added `.env` / `.env.example`**: all config externalized
+- **Added `/api/models`** endpoint: lists all Ollama models
+- **Added `/api/models/select`** endpoint: switches active model at runtime
+- **Rewrote `config.py`**: pydantic-settings + python-dotenv
+- **Rewrote `intent_router.py`**: history injection, graceful Ollama error handling, runtime model switch
+- **Rewrote `stt.py`**: faster-whisper with CUDA/CPU fallback
+- **Created `run.py`**: clean entry point (replaces misleading `aurora.py` stub)
+- **Frontend `node_modules`** installed (277 packages)
+- **Updated `.gitignore`**: covers venv, .env, vectorstore, bolt artifacts
+
+### Files modified
+- `backend/requirements.txt` — updated deps, openai-whisper → faster-whisper
+- `backend/app/config.py` — full rewrite with dotenv
+- `backend/app/api.py` — full rewrite, async-safe, session history, model endpoints
+- `backend/app/intent/intent_router.py` — full rewrite with history + error handling
+- `backend/app/perception/stt.py` — full rewrite for faster-whisper
+- `backend/app/main.py` — updated
+- `frontend/vite.config.ts` — port fix + proxy config
+- `.gitignore` — updated
+
+### Files created
+- `backend/run.py` — proper entry point
+- `backend/.env` — local config (gitignored)
+- `backend/.env.example` — template committed to repo
+
+### Tests executed & results
+| Test | Result |
+|---|---|
+| All backend module imports | ✅ PASS |
+| Frontend `npm run build` (1476 modules) | ✅ PASS |
+| `GET /health` → `{"status":"ok","ollama":true,"model":"llama3.2:3b"}` | ✅ PASS |
+| `GET /api/models` → `{"models":["llama3.2:3b"],"active":"llama3.2:3b"}` | ✅ PASS |
+
+### Git checkpoint
+Commit: `1d6fa7a` — "Phase 2: Stabilization complete"
+
+### What remains
+Phases 3–11 as per roadmap. Next: Phase 3 — Architecture Refactoring (DB layer, logging, clean modules).
+
+---
 ## Decisions Log
 
 | Date | Decision | Rationale |

@@ -1,0 +1,79 @@
+version: "3.9"
+
+services:
+  aurora-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aurora-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - aurora-data:/app/data
+      - aurora-db:/app/aurora.db
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8000
+      - VITE_ORIGIN=http://localhost:5173
+      - USER_NAME=${USER_NAME:-Sangeeth}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - aurora-net
+    restart: unless-stopped
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: aurora-sonarqube
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonar-data:/opt/sonarqube/data
+      - sonar-logs:/opt/sonarqube/logs
+      - sonar-extensions:/opt/sonarqube/extensions
+    networks:
+      - aurora-net
+    profiles:
+      - devtools
+
+  aurora-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aurora-test
+    command: >
+      sh -c "pip install pytest pytest-asyncio httpx pytest-cov &&
+             pytest tests/ -v --tb=short --junitxml=test-results/results.xml"
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - TESTING=true
+    volumes:
+      - ./backend:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - aurora-net
+    profiles:
+      - test
+
+volumes:
+  aurora-data:
+  aurora-db:
+  sonar-data:
+  sonar-logs:
+  sonar-extensions:
+
+networks:
+  aurora-net:
+    driver: bridge

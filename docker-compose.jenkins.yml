@@ -1,0 +1,29 @@
+version: "3.9"
+# Jenkins in Docker for local CI/CD learning
+# Usage: docker compose -f docker-compose.jenkins.yml up -d
+# Access: http://localhost:8080
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk21
+    container_name: aurora-jenkins
+    privileged: true
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    networks:
+      - aurora-net
+    restart: unless-stopped
+
+networks:
+  aurora-net:
+    driver: bridge
+
+volumes:
+  jenkins-home:
