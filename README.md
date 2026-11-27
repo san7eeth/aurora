@@ -20,6 +20,8 @@ Development/DevOps workflows are in [`devops/README.md`](devops/README.md). Oper
 
 Windows packaging uses PyInstaller to bundle FastAPI and the built React frontend; the local UI opens in a browser and keeps user data under `%LOCALAPPDATA%\Aurora`. See [`packaging/README.md`](packaging/README.md). Ollama remains separately installed on the host.
 
+The portable Windows ONEDIR distribution implementation and release verification process are documented in [`packaging/portable/README.txt`](packaging/portable/README.txt) and [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md). Signed official publication remains gated on developer-managed Ed25519 keys and clean Windows VM validation.
+
 ## Project structure
 
 - `backend/` — FastAPI, SQLite services, allowlisted tools, and Python tests.

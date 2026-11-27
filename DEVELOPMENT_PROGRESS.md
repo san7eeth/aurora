@@ -1,5 +1,76 @@
 # Aurora – Development Progress
-**Last Updated:** 2026-11-23 20:27 IST
+**Last Updated:** 2026-11-27
+
+## Portable release validation update — 2026-11-27
+
+This update supersedes the earlier ONEDIR/RAG blocker and validation status below. PyInstaller ONEDIR remains the only active release path.
+
+- Full backend suite: 120 passed in 25.90s, with three upstream warnings and no unknown pytest-asyncio options.
+- v10 frozen self-check and local server smoke passed. The app served health and frontend, accepted a FastAPI WebSocket, detected local Ollama and a missing model, ingested a text document, retrieved its source through FAISS/RAG, shut down, restarted, and retained indexed data.
+- Transformers is pinned to 4.44.2 to avoid filesystem-based model discovery. A narrowly scoped frozen-only import fallback reuses the already-loaded Transformers package; its package modules remain in PyInstaller PYZ with no loose Python source.
+- No `KMP_DUPLICATE_LIB_OK` workaround is used. Frozen FAISS + Torch embedding passed.
+- No portable ZIP was generated because the checkout is dirty. The dirty-checkout gate remains enabled. No official signing key/fingerprint or clean Windows VM is available; signing is BLOCKED and clean-machine/update/rollback/offline/traffic/voice checks remain NOT TESTED.
+- See `RELEASE_VALIDATION_REPORT.md` for exact command output, warning dispositions, secret scan, database findings, and changed paths.
+
+---
+
+## Portable Windows ZIP distribution — implementation in progress
+
+**Updated:** 2026-11-24 22:14 IST
+
+### Completed tasks
+- Added a PyInstaller 6.22.3 ONEDIR spec and Windows build scripts for the main app and a standalone release verifier.
+- Added portable package assembly, SHA-256 manifests, Ed25519 manifest signing/verification, safe-path and file-list checks, and a separately pinned signing-key fingerprint requirement.
+- Added LocalAppData config/database/documents/index/log/backups paths and non-overwriting migration from the previous flat database, `docs/`, and `vectorstore/` paths.
+- Added user backup/restore, verified update, rollback, proprietary license text, local Ollama setup instructions, and a protected GitHub Release workflow job.
+- User confirmed “Proprietary / all rights reserved” for the package license.
+
+### Modified files
+- `.github/workflows/release.yml`, `README.md`, `ARCHITECTURE.md`, `DEVELOPMENT_PROGRESS.md`, `DEVELOPMENT_ROADMAP.md`, `TESTING_GUIDE.md`, `DEPLOYMENT_GUIDE.md`, `SECURITY.md`, `LEARNING_NOTES.md`, `CHANGELOG.md`, `packaging/README.md`.
+- Added `packaging/portable/` spec, scripts, resources, README, verifier, and packaging requirements.
+- Updated `backend/desktop_launcher.py`, `backend/app/core/config.py`, `backend/app/core/runtime_paths.py`, document and FAISS data paths, and `backend/requirements-dev.txt`.
+- Added `backend/tests/unit/test_portable_runtime_paths.py` and `backend/tests/unit/test_release_security.py`.
+
+### Tests executed
+- Six focused runtime/release-security tests: `backend/.venv/Scripts/python.exe -m pytest backend/tests/unit/test_portable_runtime_paths.py backend/tests/unit/test_release_security.py -q`.
+- Python compileall for changed runtime and packaging modules.
+- PowerShell parser validation of all nine packaging scripts.
+- `git diff --check`.
+- PyInstaller 6.22.3 Windows 11 x64 ONEDIR build and standalone verifier build.
+- Packaged `Aurora.exe --self-check` from ONEDIR; it imports FastAPI and performs an FAISS vector add/search round trip.
+- Standalone verifier executable tested with a valid ephemeral signed ZIP, then the ZIP with an unlisted extra file.
+- Full package-script dry run using a temporary test-only key; verified with both developer and bundled user verification scripts; audited package paths, file list, source/test exclusion, license, and frontend nesting.
+- Attempted focused broader core tests and local HTTP startup smoke tests.
+- Strict Flake8 and a second pass ignoring the repository's existing E501 lines.
+- Fresh Windows x64 ONEDIR build from the maintained spec using the existing frontend build.
+- Fresh ONEDIR self-check and extracted ZIP self-check; ZIP CRC, signed manifest, and package path audit with a temporary test-only Ed25519 key.
+- Attempted loopback `/health` request from the extracted app.
+
+### Test results
+- Six portable runtime and signature/tamper/path tests passed.
+- Python compileall, PowerShell parsing, and diff whitespace checks passed (Git reported line-ending normalization notices).
+- PyInstaller ONEDIR and release-verifier builds succeeded. The filtered `_internal` runtime is 881,999,940 bytes before ZIP compression; frontend assets are correctly nested at `frontend/dist/`. A content audit found and led to removal of source, stub, test, and cache files.
+- The 2026-11-24 ONEDIR rebuild initially exposed that `aurora.spec` checked for frontend assets but did not bundle the frontend or config template. Both are now explicit PyInstaller data entries; the build completed and staged `frontend/dist/index.html` beside the executable and `resources/aurora.env.example` in `_internal`.
+- The rebuilt ONEDIR self-check exited 0. A temporary test-key ZIP passed CRC and Ed25519 manifest verification with 10,729 archive entries, 10,661 manifest-listed files, and size 375,374,015 bytes. It contained no `.py`, `.pyc`, `.pyo`, `.pyi`, Git metadata, or `.env` files. A fresh extraction at a short workspace path passed the executable self-check (exit 0).
+- A first extraction under the sandbox's deep temporary path failed with `ImportError: DLL load failed while importing _swigfaiss: The filename or extension is too long`; the short-path extraction passed. The extracted HTTP `/health` request could not be verified because the environment denied loopback socket access (`An attempt was made to access a socket in a way forbidden by its access permissions. (127.0.0.1:18321)`).
+- Packaged application self-check exited 0 with the FAISS index/search round trip.
+- The full test ZIP contained 10,667 entries and 10,601 signed files, had zero prohibited source/test/secret paths, and measured 369,836,362 bytes. The developer verifier and the bundled user verifier both accepted it. The temporary test-only ZIP and private key were removed afterward.
+- The standalone verifier accepted a valid signed ZIP and rejected modified ZIPs with unlisted content; unit tests also reject modified payload hashes, wrong trusted fingerprints, and zip-slip paths.
+- Broader core test run stalled at the existing startup-check test, which probes the local Ollama service; it was stopped after the preceding five core tests passed.
+- HTTP server smoke was blocked by the environment’s denied loopback socket permissions. A clean Windows 10/11 VM check has not been run.
+- YAML workflow parsing, PowerShell parsing, Python compileall, and diff checks passed. Strict Flake8 reports legacy E501 long-line violations across modified existing modules; Flake8 with E501 ignored found no other violations.
+
+### Known issues
+- No developer-owned Ed25519 release key or independently published trust fingerprint was supplied. The production package script correctly fails closed without them; no official ZIP was signed or published.
+- The temporary test-key ZIP was only for packaging validation and must not be distributed. The official ZIP still requires the developer's signing key and independently published fingerprint.
+- A trial that initialized FAISS and Torch in one process aborted with duplicate OpenMP runtime initialization (`libomp140.x86_64.dll` and `libiomp5md.dll`). The final self-check isolates FAISS and passes; the application's real RAG path still combines Torch-based SentenceTransformer and FAISS and needs a supported runtime resolution before claiming local RAG works in the portable package.
+- Clean Windows VM validation, package update/rollback execution, offline/Ollama/model checks, and invalid-signature checks of the final built verifier executable remain outstanding (signature, modified-file, and fingerprint rejection are covered by Python tests).
+- Current Aurora source uses FastAPI WebSockets and direct FAISS, not Socket.IO or LangChain. Those unused frameworks were not added as an architecture migration.
+- Release automation requires maintainers to configure the protected `aurora-release` GitHub environment, signing secrets, trusted fingerprint variable, and required reviewer policy.
+- The large model stack creates a large package; review `release/portable-build/aurora/warn-aurora.txt` and optimize collection after broader native runtime validation.
+
+### Next milestone
+- Resolve the FAISS/Torch OpenMP conflict, rebuild and verify RAG in ONEDIR, rerun the full package-content audit, then complete clean Windows validation and updater/rollback checks. Only after that should the developer provision signing keys and prepare/publish the official ZIP.
 
 ---
 

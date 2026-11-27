@@ -18,13 +18,14 @@ docker compose config --quiet
 
 ```powershell
 python -m pip install -r backend/requirements-dev.txt
+python -m pytest -c backend\pytest.ini backend\tests -q
 python -m pytest backend/tests/unit -v --junitxml=test-results/backend-unit.xml
 python -m pytest backend/tests/integration -v -m integration --junitxml=test-results/backend-integration.xml
 ```
 
 The test fixtures mock Ollama and retrieval. These tests do not prove live model, microphone, audio-device, or deployment behavior.
 
-The suite now includes targeted startup, Ollama HTTP, WebSocket, streaming, RAG, memory/database CRUD, TTS/STT, voice profile, tool allowlist, and malformed-input coverage. API fixtures use temporary SQLite databases to avoid touching the local app database. Some tests are async and require an environment where Python can create its event-loop socket pair; run the full commands in CI if the local sandbox blocks that operation. A skipped or blocked test is not a pass.
+The suite includes startup, Ollama HTTP, WebSocket, streaming, RAG, memory/database CRUD, TTS/STT, voice profile, tool allowlist, malformed-input, portable-launcher, and release-integrity coverage. API fixtures use temporary SQLite databases to avoid touching the local app database. `pytest-asyncio==0.24.0` is pinned so `asyncio_mode` and `asyncio_default_fixture_loop_scope` are recognized. A local full-suite run on 2026-11-27 passed 119 tests with two upstream deprecation warnings (Starlette's `multipart` import and AnyIO's `BlockingPortal` alias); see `RELEASE_VALIDATION_REPORT.md` for the exact command and output. Do not treat this suite as proof of clean-machine or live-device behavior.
 
 ## Browser/API smoke tests
 
@@ -59,3 +60,8 @@ After the Windows build succeeds, install the generated setup file in a clean Wi
 ## Record results
 
 For each milestone, record the exact commands executed, pass/fail/blocked result, environment constraints, known issues, and next milestone in [DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md). Never mark a feature verified based only on a configured workflow or a successful compile.
+# Portable release checks
+
+The clean Windows x64 matrix must exercise FAISS index operations and SentenceTransformer embeddings in the same frozen process. A current Windows source smoke exposed conflicting `libomp140` and `libiomp5md` OpenMP runtimes when FAISS and Torch are initialized together. Keep the portable RAG release gate open until that is resolved through a supported dependency/runtime combination.
+
+The focused unit checks are `backend/.venv/Scripts/python.exe -m pytest backend/tests/unit/test_portable_runtime_paths.py backend/tests/unit/test_release_security.py -q`. Build checks require Windows x64, Python 3.12, PyInstaller 6.22.3 and frontend assets. On a clean Windows 10/11 x64 VM without Python/Node, verify signature and hashes before extraction, start `Aurora.exe`, test FastAPI and FAISS, verify Ollama/model missing setup, operate offline after model download, update while preserving user data, reject altered/unsigned artifacts, and execute backup/restore/rollback. Record VM image, OS build, test date, commands, and results before calling a release complete. This workspace has not completed that VM matrix.

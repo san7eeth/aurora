@@ -26,3 +26,9 @@ The Windows package binds only to `127.0.0.1`. Its database, uploaded documents,
 Do not publish secrets or exploit details in public issues. For a suspected vulnerability, contact the project maintainer privately with affected version, reproduction steps, impact, and a safe disclosure timeline. No dedicated security response service-level agreement is currently established.
 
 The backend pins `python-multipart` to a patched release. Review dependency updates against the GitHub Advisory Database before merging them.
+
+## Portable release trust
+
+Portable ZIP files must be verified before extraction or execution with the bundled Ed25519 verifier. It pins the SHA-256 fingerprint supplied independently through the official developer channel, verifies the signed canonical manifest, checks each payload SHA-256, and rejects unlisted ZIP files and unsafe paths. Never place private signing keys in the repository, package, logs, or user data. The package builder requires externally held key paths; an official signing key and trust fingerprint must be provisioned by the authorized maintainer. SHA-256 alone detects corruption but does not establish publisher identity. PyInstaller does not make Python source impossible to recover.
+
+Updater downloads are restricted to the configured official GitHub release endpoint, are verified before extraction, require user confirmation, and back up application files. User data is outside the app directory. Clean Windows 10/11 VM signature-tamper, rollback, offline, and update-preservation checks remain release gates.

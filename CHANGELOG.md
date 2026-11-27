@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — portable Windows distribution
+
+- Added a PyInstaller ONEDIR portable ZIP workflow with a stable `Aurora/` root, separate runtime, `Start Aurora.exe`, launcher dependency diagnostics, and x64/Windows checks.
+- Added a signed release manifest with semantic version, release ID, UTC build timestamp, notes, key fingerprint, and strict per-file SHA-256 verification.
+- Added optional official-release/offline ZIP update, signed-notes confirmation, application backup/rollback, data export/restore, a Nuitka standalone project entry point, and [RELEASE_GUIDE.md](RELEASE_GUIDE.md).
+- Added a LocalAppData directory layout and non-overwriting migration from the previous flat database/document/index paths.
+- Added focused tests for signed manifest generation, invalid signatures, tampering, fingerprint mismatch, unsafe paths and archive layout.
+- The clean Windows VM run, final ZIP build/signing, and publication remain pending. Nuitka is not the active release compiler; validate it before changing the established PyInstaller build.
+
 User-facing and workflow changes are recorded here. Dates use Asia/Calcutta local time where a timestamp is needed. Verification status is kept in [DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md).
 
 ## Unreleased — 2026-11-23

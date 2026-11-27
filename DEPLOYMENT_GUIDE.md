@@ -52,3 +52,8 @@ The Phase 10 script builds a PyInstaller executable and, when Inno Setup is inst
 ```
 
 The runnable package is in `release/Aurora/`; installer output is in `release/installer/`. Start with `Start-Aurora.ps1` or the Start Menu shortcut. Stop cleanly with `Stop-Aurora.ps1`. The app opens at `http://127.0.0.1:8000/`; user data lives under `%LOCALAPPDATA%\Aurora`. Ollama remains host-managed. See [packaging/README.md](packaging/README.md) for prerequisites and verification limits.
+# Portable Windows x64 release
+
+The ONEDIR build scripts are in `packaging/portable`. Use Windows x64, Python 3.12, Node.js, and PyInstaller 6.22.3. Run `packaging/portable/build_release.ps1`; after that run `package_portable.ps1 -Version 1.0.0` with `AURORA_RELEASE_PRIVATE_KEY`, `AURORA_RELEASE_PUBLIC_KEY`, and `AURORA_RELEASE_KEY_FINGERPRINT` set to developer-controlled values. Signing keys must be stored outside the checkout. The script fails closed when they are missing. Do not publish a package until it verifies with an independently pinned fingerprint and passes the clean Windows VM gates in `TESTING_GUIDE.md`.
+
+The target filename is `Aurora-v1.0.0-Windows-x64-Portable.zip`. GitHub Actions uses the protected `aurora-release` environment. A repository administrator must create that environment, require an authorized reviewer, add `AURORA_RELEASE_PRIVATE_KEY` and `AURORA_RELEASE_PUBLIC_KEY` as environment secrets, and set `AURORA_RELEASE_KEY_FINGERPRINT` as an environment variable to the SHA-256 fingerprint of the raw Ed25519 public key. Distribute that fingerprint through an independent official channel. No official signing key has been provisioned in this workspace.

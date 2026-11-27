@@ -24,3 +24,6 @@ Run the documented checks locally, configure test credentials only in local serv
 - Writable state must stay outside the one-file executable's temporary extraction directory. The package redirects SQLite, uploads, RAG index, model cache, and logs to the user's AppData folder.
 - Ollama and its language models remain host-managed; the package owns Aurora's local files only.
 - Installer definition and executable build are verified locally; clean-account install/uninstall verification is a separate release gate.
+# Portable packaging notes — 2026-11-23
+
+PyInstaller ONEDIR keeps the executable and native runtime dependencies in a directory structure, so the executable must remain alongside `_internal`. Release authenticity requires both an Ed25519 signature over canonical manifest bytes and SHA-256 checks for every listed package file; checksum files by themselves do not establish trust. User data belongs outside the application directory so updates can replace application files without replacing databases or documents. This implementation must still be exercised on a clean Windows VM before release.

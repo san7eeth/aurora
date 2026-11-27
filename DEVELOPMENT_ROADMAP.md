@@ -1,7 +1,13 @@
 # Aurora – Development Roadmap
 **Created:** 2026-11-21  
 **Target:** Aurora 1.0 — Stable, installable, locally hosted AI desktop assistant
-**Last Status Update:** 2026-11-23 19:05 IST
+**Last Status Update:** 2026-11-27
+
+### Portable release status update — 2026-11-27
+
+PyInstaller ONEDIR remains the active release path. The v10 frozen self-check, local Ollama/model handling, native WebSocket, FAISS/RAG ingestion and retrieval, graceful shutdown, restart, and user-data persistence passed on the development host. The full backend suite passed (120 tests; three upstream warnings).
+
+No ZIP has been generated because the checkout is dirty. Official signing is BLOCKED pending authorized external keys and a trusted fingerprint. A clean Windows 10/11 VM, update/rollback, full offline, voice/FFmpeg, and outbound-traffic checks remain NOT TESTED. See `RELEASE_VALIDATION_REPORT.md`; earlier roadmap checkboxes and dated statements remain historical.
 
 ---
 
@@ -212,7 +218,7 @@ Tests and evidence:
 
 ---
 
-### Phase 10 – Desktop Packaging ⚠️ PACKAGE BUILT AND SMOKE TESTED; CLEAN SYSTEM TEST PENDING (updated 2026-11-23 19:59 IST)
+### Phase 10 – Desktop Packaging ⚠️ ONEDIR BUILT; RAG RUNTIME CHECK PENDING (updated 2026-11-23 22:18 IST)
 **Goal:** Installable Windows `.exe`.
 
 **Decision:** Option C — PyInstaller + Vite build, serving the React frontend from FastAPI. The packaged app stores writable files under the user's Local AppData directory.
@@ -221,12 +227,13 @@ Tasks:
 - [x] Build frontend (`npm run build`; production build passed 2026-11-23)
 - [x] Serve frontend static files from FastAPI (static mount smoke check passed)
 - [x] Package backend with PyInstaller into single `.exe` — built and launched successfully with local health/static UI checks
+- [x] Add the primary PyInstaller ONEDIR portable layout — Windows build and packaged FAISS index/search self-check passed; loopback API smoke remains blocked in this sandbox
 - [x] Create Inno Setup installer script — compiled with Inno Setup 7.1.1; temporary install/uninstall smoke passed
 - [x] Add application icon
 - [x] Create startup/shutdown scripts — PowerShell parser checks passed
 - [~] Test installation on clean Windows system — temporary local install/uninstall passed; separate clean account/VM remains pending
 
-The artifacts are built and locally smoke-tested, but no clean Windows account/VM validation has been run. See `packaging/README.md` and the Phase 10 entry in `DEVELOPMENT_PROGRESS.md` for evidence and remaining checks.
+The legacy one-file executable previously passed local HTTP checks. The newer ONEDIR build passed its packaged self-check, but loopback HTTP and clean Windows account/VM validation have not passed here. See `packaging/README.md` and the latest entry in `DEVELOPMENT_PROGRESS.md` for evidence and remaining gates.
 
 ---
 
@@ -234,10 +241,11 @@ The artifacts are built and locally smoke-tested, but no clean Windows account/V
 **Goal:** Aurora 1.0 release package.
 
 Tasks:
-- [ ] Write `README.md`
+- [x] Write `README.md`
 - [ ] Write `INSTALLATION.md`
 - [ ] Write `USER_GUIDE.md`
-- [ ] Write `CHANGELOG.md`
+- [x] Write `CHANGELOG.md`
+- [~] Build signed portable ZIP and release verifier — ONEDIR/verifier build and verifier smoke passed; signing keys and complete clean-system validation are pending
 - [ ] Final end-to-end test run
 - [ ] Create GitHub release with installer
 
@@ -271,3 +279,6 @@ Tasks:
 | B4 | Desktop packaging method (Phase 10) | Resolved: PyInstaller + static serve |
 
 The original Phase 2 blockers above are historical and should not be treated as current gating items. Phase 2 implementation is complete; live backend and WebSocket checks could not run because this environment denied loopback socket access. Phase 3 architecture is complete; its async startup-check test is tracked for the Phase 9 test pass. Ollama availability is environment-dependent; the application reports degraded AI health when Ollama is unavailable.
+# Portable distribution milestone
+
+**Status (2026-11-23 22:18 IST): Implementation in progress.** PyInstaller ONEDIR spec, build/package/checksum/verification scripts, runtime data layout migration, six passing focused tests, and a Windows ONEDIR build are present. A complete temporary-key ZIP dry run passed package verification and the no-source content audit. A Torch/FAISS duplicate OpenMP runtime abort was found during a combined native runtime trial; local RAG in ONEDIR is not yet validated. Official signed release remains gated on resolving that runtime issue, clean VM tests, updater tests, and developer-controlled signing keys. Current source uses FastAPI/WebSocket and direct FAISS modules; Socket.IO and LangChain are not used and were not introduced as architecture changes.
