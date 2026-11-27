@@ -1,6 +1,10 @@
 # Windows desktop package
 
-Phase 10 uses the roadmap's recommended PyInstaller route. It ships one `Aurora.exe` that starts FastAPI, serves the compiled React UI on loopback, and opens the user's browser. It does not add Electron/Tauri or another backend service.
+## Portable ONEDIR distribution (current implementation)
+
+The user-facing ZIP build is in [`portable/`](portable/). Run `portable/build_release.ps1` on Windows x64 with Python 3.12 and Node.js, then `portable/package_portable.ps1` after setting developer-managed Ed25519 key paths and the independently trusted fingerprint for an official release. `portable/VERSION` supplies the default semantic version. The output is `Aurora-v<version>-Windows-x64-Portable.zip` with one `Aurora/` root, `Aurora.exe`, `Start Aurora.exe`, and a separate `runtime/` directory. An explicitly labelled `-UnsignedCandidate` is available only for internal validation after the clean-checkout gate passes; it is not trusted and cannot be installed by the updater. Never generate a production key in the repository or commit one. See [RELEASE_GUIDE.md](../RELEASE_GUIDE.md) for signing, release publication and clean-VM validation. `portable/README.txt` explains end-user launch and Ollama setup. The existing one-file installer below is a legacy packaging route and is not the primary ZIP strategy.
+
+The current release build uses PyInstaller ONEDIR, which has already been exercised with this dependency set. `portable/nuitka-project.py` is a Nuitka standalone project entry point for evaluation; it is not the production release compiler until it passes the same clean-machine validation. The app executable starts FastAPI, serves the compiled React UI on loopback, and opens the user's browser. It does not add Electron/Tauri or another backend service.
 
 ## Requirements
 
@@ -49,10 +53,10 @@ Packaged writable data is stored under `%LOCALAPPDATA%\Aurora`:
 
 The installer is per-user and does not require administrator rights. Uninstall requests a clean server shutdown and preserves user data.
 
-## Current verification status
+## Legacy single-file installer verification status (historical)
 
-Built on Windows 11 with Python 3.12.10, PyInstaller 6.22.3, and Inno Setup 7.1.1. `release/pyinstaller/Aurora.exe` (about 358 MB) and `release/installer/Aurora-Setup-0.3.0-x64.exe` (about 355 MB) were produced. The executable served `/` with the compiled frontend, returned a healthy database status and one model from `/api/models`, and shut down cleanly on an isolated data directory and port. The installer compiled without warnings, installed into a temporary folder, placed its expected files, and uninstalled successfully.
+Earlier validation built the legacy single-file installer on Windows 11 with Python 3.12.10, PyInstaller 6.22.3, and Inno Setup 7.1.1. It is not evidence for the current portable ONEDIR workflow.
 
-The clean Windows account/VM install and uninstall test remains pending. The smoke test also did not exercise chat WebSockets, voice hardware, first-run model downloads, or a machine without Python/Node. Phase 10 remains open until the clean-system check passes.
+The current ONEDIR validation status is recorded in [`../RELEASE_VALIDATION_REPORT.md`](../RELEASE_VALIDATION_REPORT.md). A clean Windows account/VM test remains pending.
 
 The single-file bundle collects the ML stack and may be large. Sentence Transformer and faster-whisper model weights still download to the user's cache on first use. Measure the built size and startup time on target hardware before release.

@@ -1,0 +1,4 @@
+Aurora — Proprietary Software
+Copyright © 2026 Aurora Project. All rights reserved.
+
+No license to copy, modify, redistribute, reverse engineer, or use this software is granted except as expressly authorized in a separate written agreement from the rights holder. This notice does not claim that compiled software is impossible to inspect or recover.
