@@ -1,5 +1,6 @@
 """Application settings. Loaded from environment variables and backend/.env."""
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,9 +11,14 @@ from .runtime_paths import app_data_dir
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 APP_DATA_DIR = app_data_dir(BACKEND_DIR / "data")
-DEFAULT_DB_PATH = APP_DATA_DIR / "aurora.db"
+DEFAULT_DB_PATH = Path(
+    os.environ.get("AURORA_DATABASE_PATH", APP_DATA_DIR / "aurora.db")
+).expanduser().resolve()
+USER_CONFIG_FILE = Path(
+    os.environ.get("AURORA_CONFIG_FILE", BACKEND_DIR / ".env")
+).expanduser().resolve()
 
-load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(USER_CONFIG_FILE)
 
 
 class Settings(BaseSettings):
@@ -27,7 +33,7 @@ class Settings(BaseSettings):
     log_json: bool = False
 
     model_config = SettingsConfigDict(
-        env_file=str(BACKEND_DIR / ".env"),
+        env_file=str(USER_CONFIG_FILE),
         env_file_encoding="utf-8",
         extra="ignore",
     )

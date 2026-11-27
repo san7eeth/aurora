@@ -4,6 +4,8 @@ FAISS vector store + sentence-transformers embeddings + simple retrieval.
 
 from typing import List, Tuple
 import json
+import os
+from pathlib import Path
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -11,7 +13,9 @@ from ..core.config import APP_DATA_DIR
 
 
 DATA_DIR = APP_DATA_DIR
-STORE_DIR = DATA_DIR / "vectorstore"
+STORE_DIR = Path(
+    os.environ.get("AURORA_FAISS_DIR", DATA_DIR / "vectorstore")
+).expanduser().resolve()
 STORE_DIR.mkdir(parents=True, exist_ok=True)
 
 

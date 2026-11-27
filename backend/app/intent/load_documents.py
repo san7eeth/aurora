@@ -2,13 +2,16 @@
 
 from pathlib import Path
 from typing import List
+import os
 import re
 from pypdf import PdfReader
 from docx import Document
 from ..core.config import APP_DATA_DIR
 
 
-DOCS_DIR = APP_DATA_DIR / "docs"
+DOCS_DIR = Path(
+    os.environ.get("AURORA_DOCUMENTS_DIR", APP_DATA_DIR / "docs")
+).expanduser().resolve()
 
 
 def list_supported_documents() -> List[Path]:

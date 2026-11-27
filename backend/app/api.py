@@ -6,6 +6,7 @@ Phase 3: Architecture refactoring — service layer, database, streaming, REST e
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 import threading
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
     from .intent.rag_service import RAGService
 
 logger = logging.getLogger("aurora.api")
+APP_VERSION = os.environ.get("AURORA_VERSION", "0.3.0")
 
 # ---------------------------------------------------------------------------
 # Service singletons
@@ -132,7 +134,7 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 # App creation
 # ---------------------------------------------------------------------------
-app = FastAPI(title="Aurora Assistant API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Aurora Assistant API", version=APP_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -403,7 +405,7 @@ async def health():
         "database_error": startup_state.database_error,
         "ollama": ollama_ok,
         "model": settings.ollama_model,
-        "version": "0.3.0",
+        "version": APP_VERSION,
     })
 
 
