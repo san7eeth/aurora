@@ -5,7 +5,7 @@
 
 ### Portable release status update — 2026-11-27
 
-PyInstaller ONEDIR remains the active release path. The v10 frozen self-check, local Ollama/model handling, native WebSocket, FAISS/RAG ingestion and retrieval, graceful shutdown, restart, and user-data persistence passed on the development host. The full backend suite passed (120 tests; three upstream warnings).
+PyInstaller ONEDIR remains the active release path. The existing v10 unsigned candidate passed self-check, local Ollama/model handling, native WebSocket, RAG indexing/retrieval, graceful shutdown, restart, and user-data persistence on the development host; its grounded generation failed. An explicit context-grounding prompt fix passed focused tests and cold-cache RAG checks in a rebuilt local v12 ONEDIR. No replacement ZIP was packaged. The full backend suite passed earlier (120 tests; three upstream warnings).
 
 No ZIP has been generated because the checkout is dirty. Official signing is BLOCKED pending authorized external keys and a trusted fingerprint. A clean Windows 10/11 VM, update/rollback, full offline, voice/FFmpeg, and outbound-traffic checks remain NOT TESTED. See `RELEASE_VALIDATION_REPORT.md`; earlier roadmap checkboxes and dated statements remain historical.
 
@@ -48,7 +48,7 @@ No ZIP has been generated because the checkout is dirty. Official signing is BLO
 
 ---
 
-### Phase 2 – Stabilization ✅ IMPLEMENTATION COMPLETE (reviewed 2026-11-23)
+### Phase 2 – Stabilization ✅ IMPLEMENTATION AND FROZEN RUNTIME VERIFIED (2026-11-28)
 **Goal:** Make the backend startable and the frontend connectable.
 
 Tasks:
@@ -62,13 +62,13 @@ Tasks:
 - [x] Fix `Header.tsx` to show real clock
 - [x] Fix connection status dot in Header using periodic `/health` checks
 - [x] Document ffmpeg prerequisite in `VOICE_SETUP.md` — ffmpeg itself is not available in this environment
-- [ ] Confirm backend startup and WebSocket end-to-end — live check attempted; sandbox denied loopback socket access
+- [x] Confirm backend startup and WebSocket end-to-end — existing v10 ONEDIR returned healthy API status and completed a browser chat over WebSocket on 2026-11-28
 - [x] Import backend API module — passed 2026-11-23
 - [x] Frontend production build — passed 2026-11-23 (1476 modules)
 
 ---
 
-### Phase 3 – Architecture Refactoring ✅ COMPLETED (reviewed 2026-11-23)
+### Phase 3 – Architecture Refactoring ✅ IMPLEMENTATION COMPLETE; DATABASE AND STARTUP SMOKE VERIFIED (2026-11-28)
 **Goal:** Clean module boundaries, database layer, logging.
 
 Tasks:
@@ -82,11 +82,11 @@ Tasks:
 - [x] Create `.env` and `.env.example`
 - [x] Add startup health checks (Ollama ping, DB init)
 
-Verification: all Phase 3 synchronous core/database tests passed (14 passed). The async startup-check test stalled under the available Python event loop and was stopped; rerun it with the broader Phase 9 test pass. This does not block completion of the Phase 3 architecture work.
+Verification: all Phase 3 synchronous core/database tests passed (14 passed). The frozen v10 app also passed database health and conversation/memory CRUD checks on 2026-11-28. Internal module boundaries and the historical async startup-check test were not re-tested through the frozen app.
 
 ---
 
-### Phase 4 – Core AI Assistant ✅ IMPLEMENTATION COMPLETE (updated 2026-11-23 16:33 IST)
+### Phase 4 – Core AI Assistant ✅ IMPLEMENTATION AND FROZEN RUNTIME VERIFIED (updated 2026-11-28)
 **Goal:** Working text chat with conversation history and model management.
 
 Tasks:
@@ -101,11 +101,11 @@ Tasks:
 - [x] Build **Model management screen** (list models, select active)
 - [x] Update Header with live connection status, active model, and local clock
 
-Verification: production build, TypeScript check, backend compile, and API import passed on 2026-11-23. Live REST/WebSocket chat was not exercised because this managed environment blocks loopback socket access.
+Verification: the existing v10 ONEDIR exposed healthy model/conversation APIs; model selection and conversation CRUD passed. Playwright loaded Chat, History, and Models, completed a streamed chat over `/ws`, and showed the persisted conversation on 2026-11-28. Exact 20-message history truncation was not tested.
 
 ---
 
-### Phase 5 – Memory and RAG ✅ IMPLEMENTATION COMPLETE (updated 2026-11-23 16:49 IST)
+### Phase 5 – Memory and RAG ✅ FROZEN RAG FIX AND MEMORY API VERIFIED (updated 2026-11-28)
 **Goal:** Persistent long-term memory and document intelligence with management UI.
 
 Tasks:
@@ -120,7 +120,7 @@ Tasks:
 - [x] Build **Memory management screen** (view, add, edit, delete memories)
 - [x] Add document reference display in chat responses and persisted message metadata
 
-Verification: frontend build/type check, backend compile/API import, and ORM mapper configuration passed on 2026-11-23. The live upload, retrieval, and Ollama memory-extraction flow was not exercised because this managed environment blocks loopback socket access; include it in Phase 9 verification.
+Verification: v10 indexed and cited a one-chunk document but repeatedly ignored its relevant fact; an intermediate temperature-only v11 change also failed. The final fix adds explicit, injection-aware instructions to answer from relevant excerpts without changing the configured generation temperature. The focused router suite passed (10 tests); rebuilt local v12 ONEDIR indexed with an initially empty Hugging Face cache, downloaded the embedding weights, and returned the fact with its citation on three API queries and one Playwright chat. The existing v10 unsigned ZIP remains unchanged and still has the RAG bug. Memory create/embed/update/delete and semantic retrieval passed on 2026-11-28. Automatic memory extraction after each turn and combined memory-plus-document retrieval remain untested.
 
 ---
 
@@ -137,11 +137,11 @@ Tasks:
 - [x] Handle ffmpeg-not-found gracefully for legacy encoded audio
 - [x] Build **Voice settings panel** in the Voice screen
 
-**Implementation status:** Complete; live voice loop verification is pending. Updated 2026-11-23 17:01 IST.
+**Implementation status:** Complete; voice settings and speech-rate API are verified, but microphone capture, enrollment, and the full voice loop remain untested without audio hardware. Updated 2026-11-28.
 
 ---
 
-### Phase 7 – Advanced AI ✅ IMPLEMENTATION COMPLETE (updated 2026-11-23 17:16 IST)
+### Phase 7 – Advanced AI ⚠️ PLAN AND CONFIRMATION FLOWS VERIFIED; VOICE AUTH NOT TESTED (updated 2026-11-28)
 **Goal:** Voice authentication, agentic tool execution, desktop automation.
 
 Tasks:
@@ -154,7 +154,7 @@ Tasks:
 - [x] Persist plans, approval state, and redacted execution history in SQLite
 - [x] Build **Agent / task management screen** with plan preview, approve/cancel, history, and voice-profile controls
 
-**Verification:** Frontend build and TypeScript check passed; backend compile passed. Runtime API/tool/voice-profile flows remain for Phase 9 verification. Voice matching is a convenience feature and must not be used to protect actions or data.
+**Verification:** the frozen app listed allowlisted tools, generated and persisted a reviewable plan, rejected execution without confirmation (HTTP 400), and cancelled the plan. No desktop action or voice profile was executed. Voice matching is a convenience feature and must not be used to protect actions or data.
 
 ---
 
@@ -174,24 +174,26 @@ Tasks:
 - [ ] Configure Jira/GitHub/Jenkins/SonarQube accounts and credentials on the user's hosts; exercise full CI/staging lifecycle
 - [x] Produce the native Windows installer in Phase 10; clean-system validation is tracked as a remaining verification task
 
-**Status:** Workflow and service configuration is present and Compose syntax was validated. Feature behavior is not marked complete until the automated suites and live CI/staging lifecycle pass. External accounts and credentials are not configured here. Phase 8 remains unstarted.
+**Status:** Workflow and service configuration is present and Compose syntax was validated. `/metrics` responded in the frozen app; live CI/staging lifecycle, external accounts, and credentials were not tested. See the 2026-11-28 verification matrix below.
 
 ---
 
-### Phase 8 – UI and UX Polish ⚠️ BUILD VERIFIED; INTERACTION VERIFICATION PENDING (updated 2026-11-23 18:08 IST)
+### Phase 8 – UI and UX Polish ✅ PRIMARY INTERACTIONS VERIFIED; SOME POLISH NOT TESTED (updated 2026-11-28)
 **Goal:** Premium, dark-themed, polished desktop experience.
 
 Tasks:
-- [~] Apply consistent dark theme (black/charcoal backgrounds, cyan/blue accents) and a light theme toggle
-- [~] Keep responsive side navigation for all eight screens
-- [~] Add Framer Motion page and setup-step transitions
-- [~] Add live backend/Ollama/database and selected-model status; show browser JS heap only when the browser exposes it
-- [~] Add first-run wizard for username, installed model selection, and optional voice enrollment
-- [~] Replace dashboard sample data and polish shared shell, focus, scrollbar, and reduced-motion styles
-- [~] Add keyboard shortcuts for new chat, screen navigation, help, and dialog dismissal
-- [~] Add an error boundary with recovery action
+- [x] Apply consistent dark theme (black/charcoal backgrounds, cyan/blue accents) and a light theme toggle — both themes switched in Playwright
+- [x] Keep responsive side navigation for all eight screens — all eight screens loaded; navigation remained visible at 390px
+- [x] Add Framer Motion page and setup-step transitions — screen navigation and all three setup steps completed
+- [x] Add live backend/Ollama/database and selected-model status; show browser JS heap only when the browser exposes it — dashboard showed live healthy status, model, and browser heap
+- [x] Add first-run wizard for username, installed model selection, and optional voice enrollment — name/model/voice steps displayed; microphone enrollment not attempted
+- [~] Replace dashboard sample data and polish shared shell, focus, scrollbar, and reduced-motion styles — live dashboard data verified; focus, scrollbar, and reduced-motion behavior not individually tested
+- [x] Add keyboard shortcuts for new chat, screen navigation, help, and dialog dismissal — Ctrl+N, Alt+4, ?, and Escape passed
+- [~] Add an error boundary with recovery action — not fault-injected
 
-`[~]` means implementation is present and static checks pass, while the interactive behavior has not yet been verified. The browser heap metric is not system RAM usage.
+`[~]` means implementation is present but one or more listed behaviors remain untested. The browser heap metric is not system RAM usage.
+
+**Frozen-app verification:** Existing v10 was tested first; its RAG grounding failure required a minimal source fix, regression test, and v12 ONEDIR rebuild. Per-feature PASS/FAIL/NOT TESTED results and one-line evidence for Phases 2–8, including the pre-Phase 8 DevOps work, are in [RELEASE_VALIDATION_REPORT.md](./RELEASE_VALIDATION_REPORT.md#phases-2-8-frozen-app-verification). The existing v10 unsigned ZIP was not repackaged and does not contain this fix.
 
 ---
 
@@ -218,7 +220,7 @@ Tests and evidence:
 
 ---
 
-### Phase 10 – Desktop Packaging ⚠️ ONEDIR BUILT; RAG RUNTIME CHECK PENDING (updated 2026-11-23 22:18 IST)
+### Phase 10 – Desktop Packaging ⚠️ ONEDIR BUILT; CLEAN-SYSTEM VALIDATION PENDING (updated 2026-11-28)
 **Goal:** Installable Windows `.exe`.
 
 **Decision:** Option C — PyInstaller + Vite build, serving the React frontend from FastAPI. The packaged app stores writable files under the user's Local AppData directory.
@@ -233,7 +235,7 @@ Tasks:
 - [x] Create startup/shutdown scripts — PowerShell parser checks passed
 - [~] Test installation on clean Windows system — temporary local install/uninstall passed; separate clean account/VM remains pending
 
-The legacy one-file executable previously passed local HTTP checks. The newer ONEDIR build passed its packaged self-check, but loopback HTTP and clean Windows account/VM validation have not passed here. See `packaging/README.md` and the latest entry in `DEVELOPMENT_PROGRESS.md` for evidence and remaining gates.
+The legacy one-file executable previously passed local HTTP checks. The newer ONEDIR build passed its packaged self-check, and local v12 ONEDIR RAG generation passed cold-cache API and browser checks; clean Windows account/VM validation remains pending. See `packaging/README.md` and `RELEASE_VALIDATION_REPORT.md` for evidence and remaining gates.
 
 ---
 
